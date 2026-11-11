@@ -11,7 +11,7 @@ import { generateJSON } from '../_shared/llm.ts'
 import jpeg from 'npm:jpeg-js@0.4.4'
 
 const PER_RUN = 4 // each image costs ~0.2s CPU to shrink; stay well under the edge CPU limit
-const DAILY_CAP = 120 // ~170/day fit in the free quota; keep a safety margin
+const DAILY_CAP = 70 // the free quota (10,000 neurons) gave ~80 images on day one; keep a margin
 const MODEL = '@cf/black-forest-labs/flux-1-schnell'
 
 const STYLE =
@@ -99,6 +99,7 @@ Deno.serve(async (req) => {
     } catch (e) {
       // The story keeps its library image and is retried next run.
       log.push(`${s.id.slice(0, 8)}: ${(e as Error).message}`)
+      if (/daily free allocation/i.test((e as Error).message)) break // quota is over until 00:00 UTC
     }
   }
   return json({ ok: true, left: left - todo.length, log })
