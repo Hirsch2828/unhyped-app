@@ -190,7 +190,9 @@ Deno.serve(async (req) => {
 
 // deno-lint-ignore no-explicit-any
 async function pickImage(sb: any, topic: string, area: string | null) {
-  const { data } = await sb.from('images').select('id, tags').eq('topic', topic)
+  // Only the shared backup library: never another story's own illustration.
+  const { data: lib } = await sb.from('images').select('id, tags').eq('topic', topic).contains('tags', ['library'])
+  const { data } = lib?.length ? { data: lib } : await sb.from('images').select('id, tags').eq('topic', topic).not('tags', 'cs', '{ai}')
   if (!data?.length) return null
   const match = area ? data.filter((i: { tags: string[] }) => i.tags.includes(area)) : []
   const pool = match.length ? match : data

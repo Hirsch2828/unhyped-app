@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import Shell from './components/Shell'
 import { usePrefs } from './lib/prefs'
 import Brief from './pages/Brief'
+import Category from './pages/Category'
 import Editor from './pages/Editor'
 import Home from './pages/Home'
 import Onboarding from './pages/Onboarding'
@@ -19,6 +20,7 @@ export default function App() {
       <Route element={prefs.onboarded ? <Shell /> : <Navigate to="/welcome" replace />}>
         <Route path="/" element={<Home />} />
         <Route path="/story/:id" element={<StoryPage />} />
+        <Route path="/c/:id" element={<Category />} />
         <Route path="/brief" element={<Brief />} />
         <Route path="/saved" element={<Saved />} />
         <Route path="/settings" element={<Settings />} />

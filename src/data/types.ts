@@ -28,4 +28,6 @@ export interface Story {
   trending: number
   readMinutes: number
   image: string
+  /** true when the image was drawn by AI: the UI shows an "Illustration" badge */
+  illustration?: boolean
 }

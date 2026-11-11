@@ -42,7 +42,7 @@ export interface Row {
   market_reaction: string | null
   article_count: number
   last_article_at: string
-  images: { path: string } | null
+  images: { path: string; tags: string[] | null } | null
   articles: { url: string; title: string; sources: { name: string; tier: string } | null }[]
 }
 
@@ -82,19 +82,20 @@ export function toStory(r: Row): Story {
     trending: r.article_count * 10 + r.importance * 5 - hoursAgo,
     readMinutes: Math.max(1, Math.round(words / 200)),
     image: r.images?.path ?? fallbackImage[r.topic] ?? 'img/ai-hero.jpg',
+    illustration: !!r.images?.tags?.includes('ai'),
   }
 }
 
 export async function loadLive() {
   try {
-    const since = new Date(Date.now() - 72 * 3600_000).toISOString()
+    const since = new Date(Date.now() - 7 * 24 * 3600_000).toISOString()
     const q = new URLSearchParams({
       select:
-        'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path),articles(url,title,sources(name,tier))',
+        'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,sources(name,tier))',
       status: 'eq.published',
       last_article_at: `gte.${since}`,
       order: 'last_article_at.desc',
-      limit: '80',
+      limit: '300',
     })
     const res = await fetch(`${SUPABASE_URL}/rest/v1/stories?${q}`, {
       headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}` },

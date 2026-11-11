@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Clock, Lightbulb, Share2 } from 'lucide-react'
 import { findStory, useStories } from '../lib/stories'
 import { usePrefs } from '../lib/prefs'
-import { Img, LabelTag, Row, SaveButton, StoryCard, TopicPill, labelHint } from '../components/ui'
+import { LabelTag, Row, SaveButton, StoryCard, TopicPill, labelHint, StoryImg } from '../components/ui'
 import SignupSheet from '../components/SignupSheet'
 
 export default function StoryPage() {
@@ -49,7 +49,7 @@ export default function StoryPage() {
     <article className="fade-in">
       <div className="mx-auto max-w-3xl sm:px-8 sm:pt-6">
         <div className="relative">
-          <Img src={story.image} className="h-72 w-full sm:h-[380px] sm:rounded-3xl" alt="" />
+          <StoryImg story={story} className="h-72 w-full sm:h-[380px] sm:rounded-3xl" />
           <div className="absolute inset-x-0 top-0 flex justify-between p-3 sm:p-4">
             <button
               onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))}

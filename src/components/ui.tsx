@@ -70,6 +70,41 @@ export function Img({ src, className = '', alt = '' }: { src: string; className?
   return <img src={src} alt={alt} loading="lazy" className={`object-cover ${className}`} />
 }
 
+// Story image with an "Illustration" badge when the picture was drawn by AI (never a photo of the event).
+export function StoryImg({
+  story,
+  className = '',
+  imgClassName = '',
+  mini = false,
+  badgeTop = false,
+}: {
+  story: Pick<Story, 'image' | 'illustration' | 'title'>
+  className?: string
+  imgClassName?: string
+  mini?: boolean
+  badgeTop?: boolean
+}) {
+  return (
+    <div className={`relative overflow-hidden ${className}`}>
+      <Img src={story.image} className={`h-full w-full ${imgClassName}`} />
+      {story.illustration &&
+        (mini ? (
+          <span
+            title="Illustration"
+            aria-label="Illustration"
+            className="absolute bottom-1 left-1 grid h-4 w-4 place-items-center rounded-full bg-black/45 text-white backdrop-blur"
+          >
+            <Sparkles className="h-2.5 w-2.5" />
+          </span>
+        ) : (
+          <span className={`absolute ${badgeTop ? 'right-3 top-3' : 'bottom-2 left-2'} rounded-md bg-black/45 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white/90 backdrop-blur`}>
+            Illustration
+          </span>
+        ))}
+    </div>
+  )
+}
+
 export function SaveButton({ story, onSaved, className = '' }: { story: Story; onSaved?: () => void; className?: string }) {
   const { prefs, toggleSave } = usePrefs()
   const saved = prefs.saved.includes(story.id)
@@ -95,9 +130,7 @@ export function StoryCard({ story }: { story: Story }) {
       to={`/story/${story.id}`}
       className="group flex w-[78vw] max-w-[320px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-sand-300/70 bg-sand-50 shadow-card transition hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-forest sm:w-[300px]"
     >
-      <div className="overflow-hidden">
-        <Img src={story.image} className="h-36 w-full transition duration-500 group-hover:scale-[1.04]" />
-      </div>
+      <StoryImg story={story} className="h-40" imgClassName="transition duration-500 group-hover:scale-[1.04]" />
       <div className="flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-2">
           <h3 className="line-clamp-2 text-[1.05rem] font-semibold leading-snug text-charcoal">{story.title}</h3>
@@ -124,10 +157,30 @@ export function SectionHeader({ title, subtitle, action }: { title: string; subt
   )
 }
 
-export function Row({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+export function Row({
+  title,
+  subtitle,
+  seeAll,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  seeAll?: string
+  children: React.ReactNode
+}) {
   return (
     <section className="fade-in">
-      <SectionHeader title={title} subtitle={subtitle} />
+      <SectionHeader
+        title={title}
+        subtitle={subtitle}
+        action={
+          seeAll && (
+            <Link to={seeAll} className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-forest hover:text-terra-600">
+              See all <ArrowRight className="h-4 w-4" />
+            </Link>
+          )
+        }
+      />
       <div className="no-scrollbar flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-4 px-4 pb-4 pt-1 sm:scroll-px-8 sm:px-8">
         {children}
       </div>

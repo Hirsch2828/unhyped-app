@@ -5,7 +5,7 @@ import { feedFor, today } from '../lib/feed'
 import { useStories } from '../lib/stories'
 import { usePrefs } from '../lib/prefs'
 import { topicInfo } from '../data/topics'
-import { ArrowCircle, Img, LabelTag, TopicPill } from '../components/ui'
+import { ArrowCircle, LabelTag, TopicPill, StoryImg } from '../components/ui'
 
 export default function Brief() {
   const { prefs } = usePrefs()
@@ -67,7 +67,7 @@ export default function Brief() {
               <span className="absolute left-8 top-4 h-24 w-28 rounded-2xl bg-forest/80" />
               <span className="absolute -right-2 top-0 h-16 w-20 rounded-xl bg-terra" />
               <Link to={`/story/${top.id}`} className="group absolute left-14 top-8 z-10 h-[320px] w-[270px] overflow-hidden rounded-3xl shadow-xl">
-                <Img src={top.image} className="h-full w-full" />
+                <StoryImg story={top} className="h-full w-full" />
                 <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
                 <span className="absolute inset-x-0 bottom-0 flex items-end gap-3 p-4 text-white">
                   <span>
@@ -79,7 +79,7 @@ export default function Brief() {
               </Link>
               <div className="absolute right-0 top-14 flex flex-col gap-3">
                 {side.map((s) => (
-                  <Img key={s.id} src={s.image} className="h-24 w-32 rounded-2xl shadow-md" />
+                  <StoryImg key={s.id} story={s} mini className="h-24 w-32 rounded-2xl shadow-md" />
                 ))}
               </div>
             </div>
@@ -93,7 +93,7 @@ export default function Brief() {
             <li key={s.id} className="relative mb-6 flex gap-3 border-b border-sand-300/50 pb-6 last:border-0 sm:gap-5">
               <span className="z-10 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-forest text-sm text-sand-50 sm:h-8 sm:w-8">{i + 1}</span>
               <Link to={`/story/${s.id}`} className="group flex min-w-0 flex-1 flex-col gap-4 sm:flex-row">
-                <Img src={s.image} className="h-40 w-full shrink-0 rounded-2xl sm:h-36 sm:w-48" />
+                <StoryImg story={s} className="h-40 w-full shrink-0 rounded-2xl sm:h-36 sm:w-48" />
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2 text-sm text-charcoal-400">
                     <TopicPill topic={s.topic} /> {s.time} · <LabelTag label={s.label} />

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { Bookmark } from 'lucide-react'
 import { useStories } from '../lib/stories'
 import { usePrefs } from '../lib/prefs'
-import { Img, MetaRow, SaveButton, TopicPill } from '../components/ui'
+import { MetaRow, SaveButton, TopicPill, StoryImg } from '../components/ui'
 
 export default function Saved() {
   const { prefs } = usePrefs()
@@ -25,7 +25,7 @@ export default function Saved() {
           {items.map((s) => (
             <li key={s.id}>
               <Link to={`/story/${s.id}`} className="flex gap-4 rounded-2xl border border-sand-300/70 bg-sand-50 p-3 hover:border-sage">
-                <Img src={s.image} className="h-24 w-28 shrink-0 rounded-xl" />
+                <StoryImg story={s} mini className="h-24 w-28 shrink-0 rounded-xl" />
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <TopicPill topic={s.topic} />
                   <p className="line-clamp-2 font-serif text-lg font-semibold leading-snug">{s.title}</p>
