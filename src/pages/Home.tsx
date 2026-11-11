@@ -5,7 +5,7 @@ import { usePrefs } from '../lib/prefs'
 import { useStories } from '../lib/stories'
 import { topicInfo } from '../data/topics'
 import HeroCarousel from '../components/HeroCarousel'
-import { ArrowCircle, LabelTag, Row, SectionHeader, StoryCard, StoryImg, TopicPill } from '../components/ui'
+import { ArrowCircle, Icon, LabelTag, Row, SectionHeader, StoryCard, StoryImg, CategoryBadge, categoryOf } from '../components/ui'
 
 const ROW_PREVIEW = 12
 
@@ -38,7 +38,10 @@ export default function Home() {
                   : 'border-sand-300/80 bg-sand-50 text-charcoal-500 hover:border-sage hover:text-charcoal'
               }`}
             >
-              {c.name}
+              <span className="inline-flex items-center gap-1.5">
+                {categoryOf(c.id) && <Icon name={categoryOf(c.id)!.icon} className="h-4 w-4" />}
+                {c.name}
+              </span>
             </button>
           ))}
         </div>
@@ -77,7 +80,7 @@ export default function Home() {
                   <StoryImg story={s} mini className="h-20 w-20 shrink-0 rounded-xl sm:w-24" />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-charcoal-400">
-                      <TopicPill topic={s.topic} /> <LabelTag label={s.label} />
+                      <CategoryBadge story={s} className="!bg-sand-200/70 !shadow-none" /> <LabelTag label={s.label} />
                     </span>
                     <span className="mt-1 line-clamp-2 block font-serif text-[1.05rem] font-semibold leading-snug">{s.title}</span>
                   </span>

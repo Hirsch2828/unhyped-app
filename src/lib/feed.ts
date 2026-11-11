@@ -1,4 +1,4 @@
-import { getStories } from './stories'
+import { getClicks, getStories } from './stories'
 import { areas, topicInfo } from '../data/topics'
 import type { Depth, Story, Topic } from '../data/types'
 
@@ -44,12 +44,34 @@ export function buildHome(topics: Topic[], depth: Depth, myAreas: string[], filt
   const must = rest.filter((s) => s.importance === 3 && s.label !== 'rumor').slice(0, 4)
 
   const rows: HomeRow[] = []
+  const clicks = getClicks()
+  // Relevance: areas you picked count most, then importance, then freshness.
+  const relevance = (s: Story) =>
+    (myAreas.includes(s.area) ? 150 : 0) + (topics[0] === s.topic ? 20 : 0) + s.importance * 60 - s.hoursAgo
+  rows.push({
+    id: 'relevant',
+    title: 'Most relevant for you',
+    subtitle: 'Based on your topics and areas',
+    items: [...rest].sort((a, b) => relevance(b) - relevance(a)),
+  })
   rows.push({ id: 'latest', title: 'Latest', subtitle: 'Newest first', items: [...rest].sort(newest) })
   rows.push({
+    id: 'trending-now',
+    title: 'Trending right now',
+    subtitle: 'Most covered in the last 24 hours',
+    items: rest.filter((s) => s.hoursAgo <= 24).sort((a, b) => b.mergedCount - a.mergedCount || a.hoursAgo - b.hoursAgo),
+  })
+  rows.push({
+    id: 'clicked',
+    title: 'Most clicked this week',
+    subtitle: 'What readers opened the most',
+    items: [...heroes, ...rest].filter((s) => clicks[s.id]).sort((a, b) => clicks[b.id] - clicks[a.id]),
+  })
+  rows.push({
     id: 'trending',
-    title: 'Trending now',
-    subtitle: 'What everyone is talking about, checked',
-    items: [...rest].sort((a, b) => b.trending - a.trending),
+    title: 'Most trending this week',
+    subtitle: 'The stories with the most sources',
+    items: [...rest].sort((a, b) => b.mergedCount - a.mergedCount || b.trending - a.trending),
   })
   rows.push({
     id: 'official',
@@ -57,10 +79,6 @@ export function buildHome(topics: Topic[], depth: Depth, myAreas: string[], filt
     subtitle: 'Straight from the company, a regulator or a paper',
     items: rest.filter((s) => s.label === 'official').sort(newest),
   })
-  if (filter === 'all') {
-    const because = rest.filter((s) => myAreas.includes(s.area))
-    rows.push({ id: 'because', title: 'Because you follow', subtitle: 'Based on the areas you picked', items: because })
-  }
   // One row per area, unless the page is already filtered to a single area.
   if (filter === 'all' || filter in topicInfo)
     for (const t of topics) {

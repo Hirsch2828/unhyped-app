@@ -1,16 +1,16 @@
 import { Link } from 'react-router-dom'
 import {
-  ArrowRight, BarChart3, BatteryCharging, Bookmark, BookmarkCheck, Bot, Car, Check as CheckIcon, Circle, Clock, Cpu, Database,
+  ArrowRight, BarChart3, BatteryCharging, Bookmark, BrainCircuit, BookmarkCheck, Bot, Car, Check as CheckIcon, Circle, Clock, Cpu, Database,
   Factory, FileText, FlaskConical, HelpCircle, Landmark, List, Navigation, ShieldCheck, Sparkles, Sun, TrendingUp, Wind, Wrench, Zap,
   type LucideProps,
 } from 'lucide-react'
 
 const iconMap: Record<string, React.ComponentType<LucideProps>> = {
-  BarChart3, BatteryCharging, Bot, Car, Cpu, Database, Factory, FileText, FlaskConical, Landmark, List, Navigation, Sparkles, Sun,
+  BrainCircuit, BarChart3, BatteryCharging, Bot, Car, Cpu, Database, Factory, FileText, FlaskConical, Landmark, List, Navigation, Sparkles, Sun,
   TrendingUp, Wind, Wrench, Zap,
 }
 import type { Label, Story, Topic } from '../data/types'
-import { topicInfo } from '../data/topics'
+import { areas, topicInfo } from '../data/topics'
 import { timeAgo } from '../lib/feed'
 import { usePrefs } from '../lib/prefs'
 
@@ -56,6 +56,34 @@ const topicTone: Record<Topic, string> = {
   chips: 'bg-sand-200 text-charcoal-500',
   energy: 'bg-sage-100 text-forest',
   markets: 'bg-honey-100 text-honey',
+}
+
+// Icon for a topic or an area ("logo" of the category): AI, Tesla, robots, chips...
+const topicIcon: Record<Topic, string> = {
+  ai: 'BrainCircuit', tesla: 'Car', robotics: 'Bot', chips: 'Cpu', energy: 'Zap', markets: 'TrendingUp',
+}
+export function categoryOf(id: string): { name: string; icon: string } | null {
+  if (id in topicInfo) return { name: topicInfo[id as Topic].name, icon: topicIcon[id as Topic] }
+  for (const list of Object.values(areas)) {
+    const a = list.find((x) => x.id === id)
+    if (a) return { name: a.name, icon: a.icon }
+  }
+  return null
+}
+
+// Small "logo" chip on every story: the area's icon and name (or the topic's when there is no area).
+export function CategoryBadge({ story, className = '' }: { story: Pick<Story, 'topic' | 'area'>; className?: string }) {
+  const c = categoryOf(story.area) ?? categoryOf(story.topic)!
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full bg-sand-50/95 py-0.5 pl-1 pr-2 text-[11px] font-medium text-forest shadow-sm backdrop-blur ${className}`}
+    >
+      <span className={`grid h-4 w-4 place-items-center rounded-full ${story.topic === 'tesla' ? 'bg-terra text-white' : 'bg-forest text-sand-50'}`}>
+        <Icon name={c.icon} className="h-2.5 w-2.5" strokeWidth={2.5} />
+      </span>
+      {story.topic === 'tesla' && story.area ? `Tesla · ${c.name}` : c.name}
+    </span>
+  )
 }
 
 export function TopicPill({ topic }: { topic: Topic }) {
@@ -130,7 +158,10 @@ export function StoryCard({ story }: { story: Story }) {
       to={`/story/${story.id}`}
       className="group flex w-[78vw] max-w-[320px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-sand-300/70 bg-sand-50 shadow-card transition hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-forest sm:w-[300px]"
     >
-      <StoryImg story={story} className="h-40" imgClassName="transition duration-500 group-hover:scale-[1.04]" />
+      <div className="relative">
+        <StoryImg story={story} className="h-40" imgClassName="transition duration-500 group-hover:scale-[1.04]" />
+        <CategoryBadge story={story} className="absolute left-2 top-2" />
+      </div>
       <div className="flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-2">
           <h3 className="line-clamp-2 text-[1.05rem] font-semibold leading-snug text-charcoal">{story.title}</h3>

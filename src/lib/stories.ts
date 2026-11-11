@@ -6,7 +6,8 @@ import type { Label, Source, Story, Topic } from '../data/types'
 import { SUPABASE_KEY, SUPABASE_URL } from './supabase'
 
 type Mode = 'loading' | 'live' | 'sample'
-let state: { stories: Story[]; mode: Mode } = { stories: sampleStories, mode: 'loading' }
+// clicks: story id -> how many times it was opened in the last 7 days (anonymous count, no user data)
+let state: { stories: Story[]; mode: Mode; clicks: Record<string, number> } = { stories: sampleStories, mode: 'loading', clicks: {} }
 const listeners = new Set<() => void>()
 const set = (next: typeof state) => {
   state = next
@@ -14,6 +15,7 @@ const set = (next: typeof state) => {
 }
 
 export const getStories = () => state.stories
+export const getClicks = () => state.clicks
 export const findStory = (id: string) => state.stories.find((s) => s.id === id)
 
 export function useStories() {
@@ -102,9 +104,42 @@ export async function loadLive() {
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const rows = (await res.json()) as Row[]
-    if (rows.length) set({ stories: rows.map(toStory), mode: 'live' })
-    else set({ stories: sampleStories, mode: 'sample' })
+    if (rows.length) set({ ...state, stories: rows.map(toStory), mode: 'live' })
+    else set({ ...state, stories: sampleStories, mode: 'sample' })
   } catch {
-    set({ stories: sampleStories, mode: 'sample' })
+    set({ ...state, stories: sampleStories, mode: 'sample' })
   }
+  loadClicks()
+}
+
+const rpc = (fn: string, body: unknown) =>
+  fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}`, 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+// Most opened stories of the last 7 days. If the counter is not set up yet, the row simply stays hidden.
+async function loadClicks() {
+  try {
+    const res = await rpc('most_clicked', { p_days: 7 })
+    if (!res.ok) return
+    const rows = (await res.json()) as { story_id: string; clicks: number }[]
+    set({ ...state, clicks: Object.fromEntries(rows.map((r) => [r.story_id, Number(r.clicks)])) })
+  } catch {
+    /* counter unavailable: ignore */
+  }
+}
+
+// Count one open per story per browser session. Sends only the story id.
+export function recordView(id: string) {
+  if (state.mode !== 'live') return
+  try {
+    const key = `unhyped.viewed.${id}`
+    if (sessionStorage.getItem(key)) return
+    sessionStorage.setItem(key, '1')
+  } catch {
+    /* storage blocked: still count */
+  }
+  rpc('record_view', { p_story: id }).catch(() => {})
 }

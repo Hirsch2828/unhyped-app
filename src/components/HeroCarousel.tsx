@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Story } from '../data/types'
-import { topicInfo } from '../data/topics'
-import { ArrowCircle, MetaRow, StoryImg } from './ui'
+import { ArrowCircle, CategoryBadge, MetaRow, StoryImg } from './ui'
 
 const ROTATE_MS = 7000
 
@@ -73,7 +72,7 @@ export default function HeroCarousel({ stories }: { stories: Story[] }) {
                 <span className="rounded-md bg-terra px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">
                   {i === 0 ? 'Top story' : `Top ${i + 1}`}
                 </span>
-                <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs backdrop-blur">{topicInfo[s.topic].name}</span>
+                <CategoryBadge story={s} />
               </div>
               <h1 className="mt-3 line-clamp-3 pb-0.5 sm:line-clamp-none text-[1.65rem] font-semibold leading-[1.12] sm:text-4xl lg:text-[2.6rem]">{s.title}</h1>
               <p className="mt-2 line-clamp-2 text-white/85 sm:text-lg">{s.dek}</p>
