@@ -3,6 +3,18 @@ import { authorized, db, json } from '../_shared/db.ts'
 import { normalizeUrl, parseFeed } from '../_shared/rss.ts'
 
 const MAX_AGE_HOURS = 72
+// Keep one busy feed (e.g. Reddit) from flooding the queue: newest N items per source per run.
+const MAX_PER_SOURCE = 8
+// Switch a source off after this many failed runs in a row (12 runs = 3 hours).
+const MAX_FAILS = 12
+
+// Whole-word, case-insensitive match against any keyword. Empty list = keep everything.
+function keywordFilter(words: string[] | null) {
+  if (!words?.length) return () => true
+  const esc = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const re = new RegExp(`\\b(${esc.join('|')})\\b`, 'i')
+  return (text: string) => re.test(text)
+}
 
 Deno.serve(async (req) => {
   if (!(await authorized(req))) return json({ error: 'unauthorized' }, 401)
@@ -21,8 +33,12 @@ Deno.serve(async (req) => {
           signal: AbortSignal.timeout(15000),
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const matches = keywordFilter(s.keywords)
         const items = parseFeed(await res.text())
           .filter((i) => !i.publishedAt || new Date(i.publishedAt).getTime() > cutoff)
+          .filter((i) => matches(`${i.title} ${i.summary}`))
+          .sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''))
+          .slice(0, MAX_PER_SOURCE)
           .map((i) => ({
             source_id: s.id,
             url: normalizeUrl(i.url),
@@ -38,10 +54,20 @@ Deno.serve(async (req) => {
           if (insErr) throw new Error(insErr.message)
           report[s.name] = count ?? items.length
         } else report[s.name] = 0
-        await sb.from('sources').update({ last_fetched_at: new Date().toISOString(), last_error: null }).eq('id', s.id)
+        await sb.from('sources').update({ last_fetched_at: new Date().toISOString(), last_error: null, fail_count: 0 }).eq('id', s.id)
       } catch (e) {
-        report[s.name] = `error: ${(e as Error).message}`
-        await sb.from('sources').update({ last_error: (e as Error).message.slice(0, 300) }).eq('id', s.id)
+        const msg = (e as Error).message.slice(0, 250)
+        const fails = (s.fail_count ?? 0) + 1
+        const off = fails >= MAX_FAILS
+        report[s.name] = `error: ${msg}${off ? ' (switched off)' : ''}`
+        await sb
+          .from('sources')
+          .update({
+            fail_count: fails,
+            last_error: off ? `auto-disabled after ${fails} failures in a row: ${msg}` : msg,
+            ...(off ? { active: false } : {}),
+          })
+          .eq('id', s.id)
       }
     }),
   )
