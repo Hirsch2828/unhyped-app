@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Clock, Lightbulb, Share2 } from 'lucide-react'
+import { ArrowLeft, Clock, ExternalLink, Lightbulb, Share2 } from 'lucide-react'
 import { findStory, useStories } from '../lib/stories'
 import { usePrefs } from '../lib/prefs'
+import { timeAgo } from '../lib/feed'
 import { LabelTag, Row, SaveButton, StoryCard, TopicPill, labelHint, StoryImg } from '../components/ui'
 import SignupSheet from '../components/SignupSheet'
 
@@ -67,7 +68,7 @@ export default function StoryPage() {
         <div className="px-4 pt-6 sm:px-0">
           <div className="flex flex-wrap items-center gap-2 text-sm text-charcoal-500">
             <TopicPill topic={story.topic} />
-            <span>{story.time} · Today</span>
+            <span>{story.hoursAgo < 24 ? `${story.time} · Today` : timeAgo(story.hoursAgo)}</span>
           </div>
           <h1 className="mt-3 font-serif text-[2rem] font-semibold leading-tight sm:text-5xl">{story.title}</h1>
           <p className="mt-3 text-lg leading-relaxed text-charcoal-500">{story.dek}</p>
@@ -115,7 +116,24 @@ export default function StoryPage() {
 
           <section className="mt-8">
             <h2 className="font-serif text-2xl font-semibold">What happened</h2>
-            <p className="mt-3 leading-relaxed text-charcoal-500">{story.whatHappened}</p>
+            <div className="mt-3 space-y-3 leading-relaxed text-charcoal-500">
+              {story.whatHappened
+                .split(/\n\s*\n/)
+                .filter(Boolean)
+                .map((p, i) => (
+                  <p key={i}>{p}</p>
+                ))}
+            </div>
+            {story.sources[0]?.url && (
+              <a
+                href={story.sources[0].url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-forest hover:text-terra-600"
+              >
+                Read the full article on {story.sources[0].name} <ExternalLink className="h-4 w-4" />
+              </a>
+            )}
           </section>
 
           {story.marketReaction && (
@@ -131,12 +149,21 @@ export default function StoryPage() {
             <p className="mt-1 text-sm text-charcoal-400">{story.mergedCount} articles merged into this one story.</p>
             <ul className="mt-3 divide-y divide-sand-300/70 overflow-hidden rounded-2xl border border-sand-300/70 bg-sand-50">
               {story.sources.map((s) => (
-                <li key={s.name} className="flex items-start justify-between gap-4 p-4">
-                  <div>
-                    <p className="font-medium">{s.name}</p>
-                    <p className="text-sm text-charcoal-500">{s.claim}</p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-sand-200 px-2.5 py-0.5 text-xs text-charcoal-500">{s.kind}</span>
+                <li key={s.name}>
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex items-start justify-between gap-4 p-4 transition hover:bg-sand-200/60"
+                  >
+                    <div className="min-w-0">
+                      <p className="inline-flex items-center gap-1.5 font-medium group-hover:text-forest">
+                        {s.name} <ExternalLink className="h-3.5 w-3.5 text-charcoal-400" />
+                      </p>
+                      <p className="text-sm text-charcoal-500">{s.claim}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-sand-200 px-2.5 py-0.5 text-xs text-charcoal-500">{s.kind}</span>
+                  </a>
                 </li>
               ))}
             </ul>

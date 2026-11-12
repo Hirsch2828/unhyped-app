@@ -44,7 +44,7 @@ Allowed areas: ${areas.join(', ')}
 
 Articles:
 ${articles
-  .map((a) => `[${a.id}] ${a.source} (${a.tier}) ${a.published ?? ''}\nTitle: ${a.title}\nText: ${a.summary.slice(0, 900)}`)
+  .map((a) => `[${a.id}] ${a.source} (${a.tier}) ${a.published ?? ''}\nTitle: ${a.title}\nText: ${a.summary.slice(0, 1500)}`)
   .join('\n\n')}
 
 Return:
@@ -53,7 +53,7 @@ Return:
   "dek": "one sentence",
   "takeaways": ["2 to 4 short points: only what changed"],
   "why_it_matters": "1-2 sentences, what this means for the reader",
-  "what_happened": "short paragraph of facts",
+  "what_happened": "2 paragraphs separated by a blank line, about 120-170 words in total: who did what, when, the numbers, and the background the articles give. Facts from the articles only. If the articles hold fewer facts, write less; never pad, guess or repeat the takeaways.",
   "claims": [{"text": "...", "article_ids": ["a1"]}],
   "importance": 1 | 2 | 3,
   "area": "one of the allowed areas",
