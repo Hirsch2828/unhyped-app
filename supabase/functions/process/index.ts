@@ -2,16 +2,21 @@
 // Runs on a schedule (every 30 min). Request budget per run: 1 grouping call + up to MAX_WRITES write calls.
 import { authorized, db, json } from '../_shared/db.ts'
 import { generateJSON, geminiModelInUse } from '../_shared/llm.ts'
-import { AREAS, CLUSTER_SYSTEM, WRITE_SYSTEM, clusterPrompt, writePrompt } from '../_shared/prompts.ts'
+import { AREAS, CLUSTER_SYSTEM, ENRICH_SYSTEM, WRITE_SYSTEM, clusterPrompt, enrichPrompt, writePrompt } from '../_shared/prompts.ts'
 import { changeNote, clampImportance, labelFor, statusFor, type Label, type Tier } from '../_shared/rules.ts'
 
 const MAX_ARTICLES = Number(Deno.env.get('MAX_ARTICLES') ?? 25)
 const MAX_WRITES = Number(Deno.env.get('MAX_WRITES') ?? 8)
+const MAX_ENRICH = Number(Deno.env.get('MAX_ENRICH') ?? 10)
 
 // Article ids belong in claims only: strip any "[a1]" / "(a1, a2)" markers from reader-facing text.
 const clean = (t: unknown) =>
   String(t ?? '').replace(/\s*[[(]a\d+(?:\s*,\s*a\d+)*[\])]/g, '').replace(/\s+([.,;:])/g, '$1').trim()
 
+interface Enriched {
+  hype: string | null; highlight: string; uncertain: string[]
+  sources: { id: string; stance: string; note: string }[]
+}
 interface Assignment { article: string; relevant: boolean; story: string | null; group: string | null }
 interface Written {
   title: string; dek: string; takeaways: string[]; why_it_matters: string; what_happened: string
@@ -174,6 +179,7 @@ Deno.serve(async (req) => {
         article_count: arts.length,
         image_id,
         needs_rewrite: false,
+        enriched_at: null, // re-annotate with the new articles
         published_at: status === 'published' ? new Date().toISOString() : null,
         updated_at: new Date().toISOString(),
       }).eq('id', story.id)
@@ -183,6 +189,57 @@ Deno.serve(async (req) => {
       break // likely a rate limit: stop and try again next run
     }
   }
+
+  // ---------- 3. Annotate published stories (hype headline, highlight, open questions, source stances) ----------
+  const { data: plain } = await sb
+    .from('stories')
+    .select('id, title, what_happened')
+    .eq('status', 'published')
+    .is('enriched_at', null)
+    .gte('last_article_at', new Date(Date.now() - 72 * 3600_000).toISOString())
+    .order('last_article_at', { ascending: false })
+    .limit(MAX_ENRICH)
+  for (const story of plain ?? []) {
+    if (150_000 - (Date.now() - started) < 40_000) { log.push('enrich: out of time, rest waits'); break }
+    const { data: arts } = await sb
+      .from('articles')
+      .select('title, sources(name)')
+      .eq('story_id', story.id)
+      .order('published_at', { ascending: true })
+      .limit(20)
+    // deno-lint-ignore no-explicit-any
+    const list = (arts ?? []).map((a: any, i: number) => ({ id: `a${i + 1}`, source: a.sources?.name ?? 'Source', title: String(a.title) }))
+    try {
+      const e = list.length
+        ? await generateJSON<Enriched>({ system: ENRICH_SYSTEM, prompt: enrichPrompt(story, list) })
+        : ({} as Enriched)
+      const byId = new Map(list.map((a) => [a.id, a]))
+      const hype = e.hype ? byId.get(String(e.hype)) : undefined
+      // Hype must be a real source headline, and not just our own title again.
+      const useHype = hype && hype.title.trim().toLowerCase() !== String(story.title).trim().toLowerCase()
+      const hl = String(e.highlight ?? '').trim()
+      const seen = new Set<string>()
+      const notes = (e.sources ?? [])
+        .map((n) => ({ a: byId.get(String(n.id)), stance: n.stance, note: clean(n.note).slice(0, 140) }))
+        .filter((n) => n.a && ['agrees', 'adds', 'differs'].includes(n.stance) && !seen.has(n.a.source) && seen.add(n.a.source))
+        .map((n) => ({ source: n.a!.source, stance: n.stance, note: n.note }))
+      await sb.from('stories').update({
+        hype_title: useHype ? hype!.title : null,
+        hype_source: useHype ? hype!.source : null,
+        highlight: hl && story.title.includes(hl) ? hl : null,
+        uncertain: (e.uncertain ?? []).map(clean).filter(Boolean).slice(0, 3),
+        source_notes: notes,
+        enriched_at: new Date().toISOString(),
+      }).eq('id', story.id)
+    } catch (err) {
+      const msg = (err as Error).message
+      log.push(`enrich failed for ${story.id}: ${msg.slice(0, 160)}`)
+      // Rate limit or timeout: stop and retry next run. A malformed reply: mark it done so it can't block the queue.
+      if (/Gemini \d{3}|timed out|Anthropic \d{3}/i.test(msg)) break
+      await sb.from('stories').update({ enriched_at: new Date().toISOString() }).eq('id', story.id)
+    }
+  }
+  if (plain?.length) log.push(`enrich: looked at ${plain.length}`)
 
   log.push(`model ${geminiModelInUse() ?? 'n/a'}, ${Math.round((Date.now() - started) / 1000)}s`)
   return json({ ok: true, log })

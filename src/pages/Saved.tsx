@@ -37,7 +37,7 @@ export default function Saved() {
         {items.length === 0 ? (
           <div className="mt-16 flex flex-col items-center text-center">
             <Bookmark className="h-10 w-10 text-olive" strokeWidth={1.25} />
-            <p className="t-h2 mt-5">Nothing saved yet</p>
+            <p className="t-h2 mt-5">Nothing saved. That’s allowed.</p>
             <p className="t-meta mt-2 max-w-[260px] text-charcoal-400">Tap the bookmark on any story and it waits for you here.</p>
             <Link to="/" className="press mt-6 inline-flex min-h-[44px] items-center gap-1.5 text-[15px] font-medium text-forest">
               Browse today’s stories <ArrowRight className="h-4 w-4" />

@@ -119,3 +119,17 @@ export function briefItems(topics: Topic[]) {
     .sort((a, b) => b.importance - a.importance || a.hoursAgo - b.hoursAgo)
     .slice(0, 6)
 }
+
+/* ---------- The daily issue ---------- */
+
+// Issue No. 1 came out on launch day; one issue per calendar day after that.
+const LAUNCH = new Date(2026, 10, 9)
+export function issueNo(d = new Date()) {
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  return Math.max(1, Math.round((day.getTime() - LAUNCH.getTime()) / 86400_000) + 1)
+}
+export const issueDate = (d = new Date()) =>
+  d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' })
+
+// Evening runs from 19:00 until 06:00 on the reader's own clock.
+export const isEvening = (d = new Date()) => d.getHours() >= 19 || d.getHours() < 6

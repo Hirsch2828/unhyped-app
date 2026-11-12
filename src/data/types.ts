@@ -32,4 +32,20 @@ export interface Story {
   illustration?: boolean
   /** false when the story only has a shared library image (then the UI shows a typographic card) */
   ownImage?: boolean
+  /** a real source headline that oversold the story (shown struck through); null when all were calm */
+  hypeTitle?: string | null
+  /** phrase inside `title` that carries the news (the lime highlighter) */
+  highlight?: string | null
+  /** open questions the sources themselves raise */
+  uncertain?: string[]
+  /** how each source relates to our summary */
+  sourceNotes?: SourceNote[]
+  /** checked facts, each with how many articles back it */
+  claims?: { text: string; n: number }[]
+}
+
+export interface SourceNote {
+  source: string
+  stance: 'agrees' | 'adds' | 'differs'
+  note: string
 }

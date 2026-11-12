@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react'
 import type { Depth, Topic } from '../data/types'
 import { allTopics, depthInfo, topicInfo } from '../data/topics'
 import { usePrefs } from '../lib/prefs'
-import { Button, Check, Icon, Img, Logo, TrustMark, labelHint } from '../components/ui'
+import { Button, Check, Icon, Logo, TrustMark, labelHint } from '../components/ui'
 
 export default function Onboarding() {
   const { update } = usePrefs()
@@ -59,13 +59,13 @@ export default function Onboarding() {
                       key={t}
                       onClick={() => toggleTopic(t)}
                       aria-pressed={on}
-                      className={`press relative aspect-[3/4] overflow-hidden rounded-media text-left ${on ? 'ring-2 ring-forest ring-offset-2 ring-offset-sand sm:ring-offset-sand-50' : ''}`}
+                      className={`press relative aspect-[3/4] overflow-hidden border text-left ${on ? 'border-2 border-ink bg-ink text-paper' : 'border-ink text-ink'}`}
                     >
-                      <Img src={topicInfo[t].image} className="absolute inset-0 h-full w-full" />
-                      <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-                      <span className="absolute inset-x-0 bottom-0 p-4 text-sand">
-                        <span className="block font-serif text-[24px] font-semibold leading-7">{topicInfo[t].name}</span>
-                        <span className="mt-1 block min-h-[54px] text-[13px] leading-[18px] text-sand/85">{topicInfo[t].desc}</span>
+                      <span className={`halftone absolute inset-0 opacity-[0.14] [mask-image:linear-gradient(160deg,transparent_30%,#000_100%)] ${on ? 'invert' : ''}`} />
+                      <span aria-hidden className="absolute right-3 top-12 text-[96px] font-bold leading-none tracking-[-0.06em]">{t === 'ai' ? '◇' : 'T'}</span>
+                      <span className="absolute inset-x-0 bottom-0 p-4">
+                        <span className="block text-[26px] font-bold leading-7 tracking-[-0.03em]">{topicInfo[t].name}</span>
+                        <span className={`t-meta mt-1.5 block min-h-[48px] ${on ? 'text-paper/80' : 'text-ink-soft'}`}>{topicInfo[t].desc}</span>
                       </span>
                       <span className="absolute right-3 top-3">
                         <Check on={on} dark />

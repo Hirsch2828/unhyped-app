@@ -1,12 +1,13 @@
 // Story store: starts with the sample stories, then swaps in live stories from Supabase if any exist.
 import { useSyncExternalStore } from 'react'
 import { stories as sampleStories } from '../data/stories'
-import type { Label, Source, Story, Topic } from '../data/types'
+import type { Label, Source, SourceNote, Story, Topic } from '../data/types'
 
 import { SUPABASE_KEY, SUPABASE_URL } from './supabase'
 
 type Mode = 'loading' | 'live' | 'sample'
-let state: { stories: Story[]; mode: Mode } = { stories: sampleStories, mode: 'loading' }
+// articles24h: how many articles we read in the last 24 hours (the "noise" on the issue cover).
+let state: { stories: Story[]; mode: Mode; articles24h: number | null } = { stories: sampleStories, mode: 'loading', articles24h: null }
 const listeners = new Set<() => void>()
 const set = (next: typeof state) => {
   state = next
@@ -44,6 +45,11 @@ export interface Row {
   last_article_at: string
   images: { path: string; tags: string[] | null } | null
   articles: { url: string; title: string; sources: { name: string; tier: string } | null }[]
+  hype_title?: string | null
+  highlight?: string | null
+  uncertain?: string[] | null
+  source_notes?: SourceNote[] | null
+  claims?: { text: string; article_ids: string[] }[] | null
 }
 
 // Map backend area tags to the ids the UI uses.
@@ -84,6 +90,11 @@ export function toStory(r: Row): Story {
     image: r.images?.path ?? fallbackImage[r.topic] ?? 'img/ai-hero.jpg',
     illustration: !!r.images?.tags?.includes('ai'),
     ownImage: !!r.images?.tags?.includes('generated'),
+    hypeTitle: r.hype_title ?? null,
+    highlight: r.highlight && r.title.includes(r.highlight) ? r.highlight : null,
+    uncertain: r.uncertain ?? [],
+    sourceNotes: r.source_notes ?? [],
+    claims: (r.claims ?? []).map((c) => ({ text: c.text, n: c.article_ids?.length ?? 1 })),
   }
 }
 
@@ -92,7 +103,7 @@ export async function loadLive() {
     const since = new Date(Date.now() - 7 * 24 * 3600_000).toISOString()
     const q = new URLSearchParams({
       select:
-        'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,sources(name,tier))',
+        'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,sources(name,tier)),hype_title,highlight,uncertain,source_notes,claims',
       status: 'eq.published',
       last_article_at: `gte.${since}`,
       order: 'last_article_at.desc',
@@ -103,9 +114,25 @@ export async function loadLive() {
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const rows = (await res.json()) as Row[]
-    if (rows.length) set({ stories: rows.map(toStory), mode: 'live' })
-    else set({ stories: sampleStories, mode: 'sample' })
+    const articles24h = await countArticles()
+    if (rows.length) set({ stories: rows.map(toStory), mode: 'live', articles24h })
+    else set({ stories: sampleStories, mode: 'sample', articles24h: null })
   } catch {
-    set({ stories: sampleStories, mode: 'sample' })
+    set({ stories: sampleStories, mode: 'sample', articles24h: null })
+  }
+}
+
+// Exact count of articles fetched in the last 24 hours (a HEAD request, no rows downloaded).
+async function countArticles(): Promise<number | null> {
+  try {
+    const since = new Date(Date.now() - 24 * 3600_000).toISOString()
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/articles?select=id&fetched_at=gte.${since}`, {
+      method: 'HEAD',
+      headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}`, prefer: 'count=exact' },
+    })
+    const n = Number(res.headers.get('content-range')?.split('/')[1])
+    return Number.isFinite(n) ? n : null
+  } catch {
+    return null
   }
 }

@@ -66,3 +66,27 @@ export const AREAS: Record<string, string[]> = {
   ai: ['agents', 'models', 'tools', 'research', 'business', 'policy', 'infrastructure'],
   tesla: ['vehicles', 'fsd', 'optimus', 'energy', 'earnings', 'markets'],
 }
+
+// Second, light pass over a finished story: picks things the UI shows around the story.
+// It never writes new facts: the hype headline is chosen from the given titles, the highlight is copied from our title.
+export const ENRICH_SYSTEM = `You annotate a finished story for Unhyped, a calm news app.
+Hard rules:
+- hype: pick the ONE source headline below that is the most sensational (alarmist words, ALL CAPS, "changes everything", "explosive", "shock", exaggeration, loaded emotion). Return its id. If every headline is calm and factual, return null. Never rewrite a headline.
+- highlight: copy 1 to 4 consecutive words EXACTLY from our title that carry the news (a number, a date, the key action). Copy them character for character.
+- uncertain: 0 to 3 short questions that the articles themselves say are still open or unconfirmed. Do not invent doubts. Empty list if the articles raise none.
+- sources: for each source headline id, say whether it agrees with our summary, adds a detail, or differs (contradicts or frames it differently), with a note of at most 14 words.
+Reply with JSON only.`
+
+export function enrichPrompt(
+  story: { title: string; what_happened: string },
+  articles: { id: string; source: string; title: string }[],
+) {
+  return `Our title: ${story.title}
+Our summary: ${story.what_happened.slice(0, 1200)}
+
+Source headlines:
+${articles.map((a) => `${a.id} (${a.source}) ${a.title}`).join('\n')}
+
+Return:
+{"hype": "a3" or null, "highlight": "...", "uncertain": ["..."], "sources": [{"id": "a1", "stance": "agrees" | "adds" | "differs", "note": "..."}]}`
+}

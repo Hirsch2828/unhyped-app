@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight, BarChart3, BatteryCharging, Bookmark, BrainCircuit, BookmarkCheck, Bot, Car, Check as CheckIcon, Circle, Cpu, Database,
@@ -31,14 +31,16 @@ const labelInfo: Record<Label, { text: string; hint: string }> = {
 }
 export const labelHint = (l: Label) => labelInfo[l].hint
 
-// The mark itself: Official = solid forest dot, Report = hollow sage ring, Rumor = dashed honey ring.
-function Mark({ label, light }: { label: Label; light?: boolean }) {
+// Shape carries the meaning, so colour is never the only cue:
+// Official = filled ink tag, Report = outlined tag, Rumor = dashed outline.
+function Tag({ label, light }: { label: Label; light?: boolean }) {
+  const ink = light ? 'border-paper text-paper' : 'border-ink text-ink'
   const cls = {
-    official: light ? 'bg-sand' : 'bg-forest',
-    report: light ? 'border-[1.5px] border-sand/90' : 'border-[1.5px] border-sage',
-    rumor: 'border-[1.5px] border-dashed border-honey',
+    official: light ? 'border border-paper bg-paper text-ink' : 'border border-ink bg-ink text-paper',
+    report: `border ${ink}`,
+    rumor: `border border-dashed ${ink}`,
   }[label]
-  return <span aria-hidden className={`inline-block h-[10px] w-[10px] shrink-0 rounded-full ${cls}`} />
+  return <span className={`t-eyebrow inline-flex h-[18px] items-center px-1.5 leading-none ${cls}`}>{labelInfo[label].text}</span>
 }
 
 // Trust label shown the same way everywhere. With `explain`, a tap opens the plain-language meaning.
@@ -52,16 +54,10 @@ export function TrustMark({ label, light = false, explain = false }: { label: La
     document.addEventListener('pointerdown', close)
     return () => document.removeEventListener('pointerdown', close)
   }, [open])
-  const body = (
-    <>
-      <Mark label={label} light={light} />
-      {L.text}
-    </>
-  )
   if (!explain)
     return (
-      <span className={`inline-flex items-center gap-1.5 font-semibold ${light ? 'text-sand' : 'text-charcoal'}`} title={L.hint}>
-        {body}
+      <span className="inline-flex" title={L.hint}>
+        <Tag label={label} light={light} />
       </span>
     )
   return (
@@ -75,18 +71,14 @@ export function TrustMark({ label, light = false, explain = false }: { label: La
         }}
         aria-expanded={open}
         aria-label={`${L.text}: what does this mean?`}
-        className={`relative inline-flex items-center gap-1.5 font-semibold ${light ? 'text-sand' : 'text-charcoal'} underline decoration-dotted decoration-1 underline-offset-[3px] before:absolute before:-inset-3 before:content-['']`}
+        className="relative inline-flex items-center gap-1 before:absolute before:-inset-[14px] before:content-['']"
       >
-        {body}
+        <Tag label={label} light={light} />
+        <span aria-hidden className="t-meta text-ink-soft">?</span>
       </button>
       {open && (
-        <span
-          role="tooltip"
-          className="fade-in absolute left-0 top-full z-40 mt-2 w-64 rounded-card bg-charcoal px-3.5 py-3 text-[13px] font-normal normal-case leading-5 tracking-normal text-sand shadow-soft"
-        >
-          <span className="mb-1 flex items-center gap-1.5 font-medium">
-            <Mark label={label} light /> {L.text}
-          </span>
+        <span role="tooltip" className="fade-in absolute left-0 top-full z-40 mt-2 w-64 border border-ink bg-paper px-3.5 py-3 text-[13px] font-normal normal-case leading-5 tracking-normal text-ink">
+          <span className="mb-1.5 block"><Tag label={label} /></span>
           {L.hint}
         </span>
       )}
@@ -102,10 +94,11 @@ export function LabelTag({ label, light = false }: { label: Label; light?: boole
 /** time · trust mark, in meta style */
 export function MetaRow({ story, light = false, explain = false }: { story: Story; light?: boolean; explain?: boolean }) {
   return (
-    <div className={`t-meta flex flex-wrap items-center gap-x-2 gap-y-1 ${light ? 'text-sand/85' : 'text-charcoal-400'}`}>
+    <div className={`t-meta flex flex-wrap items-center gap-x-2 gap-y-1 ${light ? 'text-paper/85' : 'text-ink-soft'}`}>
+      <TrustMark label={story.label} light={light} explain={explain} />
       <span>{timeAgo(story.hoursAgo)}</span>
       <span aria-hidden>·</span>
-      <TrustMark label={story.label} light={light} explain={explain} />
+      <span>{plural(story.sources.length || story.mergedCount, 'source')}</span>
     </div>
   )
 }
@@ -128,95 +121,96 @@ export function categoryName(story: Pick<Story, 'topic' | 'area'>) {
   return story.topic === 'tesla' && story.area ? `Tesla · ${c.name}` : c.name
 }
 
-// Category eyebrow with its small monochrome glyph ("logo" of the area).
+// Desk line in mono: "AI · POLICY", "TESLA · FSD & AUTONOMY". No icons in the new style.
 export function CategoryBadge({ story, className = '', light = false }: { story: Pick<Story, 'topic' | 'area'>; className?: string; light?: boolean }) {
-  const c = categoryOf(story.area) ?? categoryOf(story.topic)!
-  return (
-    <span className={`t-eyebrow inline-flex items-center gap-1.5 ${light ? 'text-sand/90' : 'text-sage-ink'} ${className}`}>
-      <Icon name={c.icon} className="h-3 w-3" strokeWidth={2.25} aria-hidden />
-      {categoryName(story)}
-    </span>
-  )
+  const c = categoryOf(story.area)
+  const desk = c && story.area ? `${topicInfo[story.topic].name} · ${c.name}` : topicInfo[story.topic].name
+  return <span className={`t-eyebrow inline-block ${light ? 'text-paper/85' : 'text-ink-soft'} ${className}`}>{desk}</span>
 }
 
 export function TopicPill({ topic }: { topic: Topic }) {
-  return <span className="t-eyebrow text-sage-ink">{topicInfo[topic].name}</span>
+  return <span className="t-eyebrow text-ink-soft">{topicInfo[topic].name}</span>
 }
 
-/* ---------- Imagery ---------- */
+/* ---------- Plates (no photography) ---------- */
 
 export function Img({ src, className = '', alt = '' }: { src: string; className?: string; alt?: string }) {
-  return <img src={src} alt={alt} loading="lazy" decoding="async" className={`bg-sand-200 object-cover ${className}`} />
+  return <img src={src} alt={alt} loading="lazy" decoding="async" className={`bg-paper-2 object-cover ${className}`} />
 }
 
-// One screen never shows the same picture twice: the first story to use an image keeps it,
-// later ones (and stories with only a shared library image) get a typographic card.
-const ScopeCtx = createContext<Map<string, string> | null>(null)
+// Kept so pages that wrap content in an image scope still work. Plates are unique per story, so nothing is deduped.
 export function ImageScope({ children }: { children: React.ReactNode }) {
-  return <ScopeCtx.Provider value={new Map()}>{children}</ScopeCtx.Provider>
-}
-export function useClaim(story: Pick<Story, 'id' | 'image' | 'ownImage'>) {
-  const scope = useContext(ScopeCtx)
-  if (story.ownImage === false) return false
-  if (!scope) return true
-  const owner = scope.get(story.image)
-  if (!owner) {
-    scope.set(story.image, story.id)
-    return true
-  }
-  return owner === story.id
+  return <>{children}</>
 }
 
-// Typographic stand-in: a quiet "section cover" with the category in large Playfair, a rule and the area glyph.
-export function TypeCard({ story, size = 'md', className = '' }: { story: Pick<Story, 'topic' | 'area'>; size?: 'sm' | 'md' | 'lg'; className?: string }) {
-  const c = categoryOf(story.area) ?? categoryOf(story.topic)!
-  const tesla = story.topic === 'tesla'
-  const small = size === 'sm'
+const areaGlyph: Record<string, string> = {
+  policy: '§', business: '$', models: '∆', agents: '⇄', tools: '⌘', research: '∴', infrastructure: '▦',
+  vehicles: '▭', fsd: '◎', optimus: '⊕', 'tesla-energy': 'ϟ', earnings: '±', markets: '±',
+}
+
+// One glyph taken from the story itself: a number from the headline when there is one,
+// "?" for an unconfirmed claim, otherwise the sign of its desk.
+export function glyphFor(story: Pick<Story, 'title' | 'label' | 'area' | 'topic'>) {
+  if (story.label === 'rumor') return '?'
+  const money = story.title.match(/\$\s?(\d+(?:[.,]\d+)?)\s?(trillion|billion|million|tn|bn|[TBM])\b/i)
+  if (money) {
+    const unit = money[2].toLowerCase()
+    return `$${money[1]}${unit.startsWith('t') ? 'T' : unit.startsWith('b') ? 'B' : 'M'}`
+  }
+  const pct = story.title.match(/[-−+]?\d+(?:\.\d+)?%/)
+  if (pct) return pct[0].replace('-', '−')
+  const ver = story.title.match(/\b\d+\.\d+\b/)
+  if (ver) return ver[0]
+  return areaGlyph[story.area] ?? (story.topic === 'tesla' ? 'T' : '◇')
+}
+
+// Generated plate: a halftone field and one glyph from the story's own world. Never decorative, never missing.
+export function Plate({ story, size = 'md', className = '' }: { story: Pick<Story, 'title' | 'label' | 'area' | 'topic'>; size?: 'sm' | 'md' | 'lg'; className?: string }) {
+  const g = glyphFor(story)
+  const long = g.length > 3
+  const fs = size === 'sm' ? (long ? 18 : 30) : size === 'lg' ? (long ? 76 : 120) : long ? 52 : 84
   return (
-    <div className={`relative overflow-hidden ${tesla ? 'bg-sand-200' : 'bg-olive-100'} ${className}`} aria-hidden>
-      <Icon
-        name={c.icon}
-        className={`absolute text-olive-200 ${small ? '-bottom-2 -right-2 h-12 w-12' : '-bottom-6 -right-4 h-40 w-40'}`}
-        strokeWidth={small ? 1.5 : 0.9}
-      />
-      <div className={`relative flex h-full flex-col justify-between ${small ? 'p-2.5' : 'p-5 sm:p-6'}`}>
-        <span className="t-eyebrow text-sage-ink">{topicInfo[story.topic].name}</span>
-        <span>
-          <span className={`block h-px bg-forest/30 ${small ? 'mb-1.5 w-4' : 'mb-3 w-10'}`} />
-          <span
-            className={`block font-serif font-semibold italic text-forest ${small ? 'text-[13px] leading-4' : size === 'lg' ? 'text-[40px] leading-[44px]' : 'text-[30px] leading-[34px]'}`}
-          >
-            {c.name}
-          </span>
-        </span>
-      </div>
+    <div aria-hidden className={`relative overflow-hidden border border-ink bg-paper ${className}`}>
+      <div className="halftone absolute inset-0 opacity-[0.16] [mask-image:linear-gradient(115deg,transparent_25%,#000_95%)]" />
+      <span
+        className="absolute bottom-[6%] right-[7%] font-bold leading-none tracking-[-0.06em] text-ink"
+        style={{ fontSize: fs }}
+      >
+        {g}
+      </span>
+      {size !== 'sm' && <span className="t-eyebrow absolute left-3 top-2.5 text-ink-soft">{topicInfo[story.topic].name}</span>}
     </div>
   )
 }
 
-// Story picture: fills its box (aspect or height from className), sand skeleton while loading,
-// a faint warm grade so all pictures sit in one palette, typographic card when not unique.
+// Old name, now always a plate (kept so every page keeps working).
 export function StoryImg({
   story,
   className = '',
-  imgClassName = '',
   mini = false,
   size,
 }: {
-  story: Pick<Story, 'id' | 'image' | 'illustration' | 'title' | 'topic' | 'area' | 'ownImage'>
+  story: Pick<Story, 'id' | 'image' | 'illustration' | 'title' | 'topic' | 'area' | 'ownImage' | 'label'>
   className?: string
   imgClassName?: string
   mini?: boolean
   size?: 'sm' | 'md' | 'lg'
   badgeTop?: boolean
 }) {
-  const ok = useClaim(story)
-  if (!ok) return <TypeCard story={story} size={size ?? (mini ? 'sm' : 'md')} className={className} />
+  return <Plate story={story} size={size ?? (mini ? 'sm' : 'md')} className={className} />
+}
+
+// Headline with the one phrase that carries the news under the lime highlighter.
+export function Headline({ story, className = '' }: { story: Pick<Story, 'title' | 'highlight'>; className?: string }) {
+  const hl = story.highlight
+  const i = hl ? story.title.indexOf(hl) : -1
+  if (!hl || i < 0) return <span className={className}>{story.title}</span>
   return (
-    <div className={`relative overflow-hidden bg-sand-200 ${className}`}>
-      <Img src={story.image} className={`absolute inset-0 h-full w-full ${imgClassName}`} />
-      <span aria-hidden className="pointer-events-none absolute inset-0 bg-[#E9DCC0] opacity-[0.08] mix-blend-multiply" />
-    </div>
+    <span className={className}>
+      {story.title.slice(0, i)}
+      <span className="mark">{hl}</span>
+      {story.title.slice(i + hl.length)}
+    </span>
   )
 }
 
@@ -234,7 +228,7 @@ export function SaveButton({ story, onSaved, className = '', light = false }: { 
       }}
       aria-pressed={saved}
       aria-label={saved ? 'Remove from saved' : 'Save story'}
-      className={`press grid h-11 w-11 shrink-0 place-items-center rounded-full ${saved ? 'text-forest' : light ? 'text-sand' : 'text-charcoal-400 hover:text-charcoal'} ${className}`}
+      className={`press grid h-11 w-11 shrink-0 place-items-center ${saved ? 'text-ink' : light ? 'text-paper' : 'text-ink-soft hover:text-ink'} ${className}`}
     >
       {saved ? <BookmarkCheck className="h-[18px] w-[18px]" fill="currentColor" strokeWidth={1.75} /> : <Bookmark className="h-[18px] w-[18px]" strokeWidth={1.75} />}
     </button>
@@ -243,16 +237,20 @@ export function SaveButton({ story, onSaved, className = '', light = false }: { 
 
 /* ---------- Story layouts ---------- */
 
-// Card for horizontal rows and grids: picture, eyebrow, Playfair title, meta. No box around it.
+// Card for horizontal rows: plate, desk, headline, meta. Read stories fade.
 export function StoryCard({ story, wide = false }: { story: Story; wide?: boolean }) {
+  const { prefs } = usePrefs()
+  const read = prefs.read.includes(story.id)
   return (
     <Link
       to={`/story/${story.id}`}
-      className={`press group flex shrink-0 snap-start flex-col ${wide ? 'w-full' : 'w-[70vw] max-w-[288px] sm:w-[288px]'}`}
+      className={`press group flex shrink-0 snap-start flex-col ${wide ? 'w-full' : 'w-[70vw] max-w-[280px] sm:w-[280px]'} ${read ? 'opacity-55' : ''}`}
     >
-      <StoryImg story={story} className="aspect-[4/3] w-full rounded-media" imgClassName="transition duration-500 group-hover:scale-[1.03]" />
+      <Plate story={story} className="aspect-[4/3] w-full" />
       <CategoryBadge story={story} className="mt-3" />
-      <h3 className="t-card mt-1.5 text-charcoal group-hover:text-forest">{story.title}</h3>
+      <h3 className="t-card mt-1 text-ink group-hover:underline group-hover:decoration-2 group-hover:underline-offset-4">
+        <Headline story={story} />
+      </h3>
       <div className="mt-2 flex items-center justify-between">
         <MetaRow story={story} />
         <SaveButton story={story} className="-my-3 -mr-3" />
@@ -263,34 +261,37 @@ export function StoryCard({ story, wide = false }: { story: Story; wide?: boolea
 
 // Compact text row with a hairline above. `lead` is an optional left column (a numeral or a time).
 export function CompactRow({ story, lead, thumb = false }: { story: Story; lead?: React.ReactNode; thumb?: boolean }) {
-  const own = useClaim(story)
+  const { prefs } = usePrefs()
+  const read = prefs.read.includes(story.id)
   return (
-    <Link to={`/story/${story.id}`} className="press group flex gap-4 border-t border-rule py-4">
+    <Link to={`/story/${story.id}`} className={`press group flex gap-4 border-t border-rule py-4 ${read ? 'opacity-55' : ''}`}>
       {lead}
       <span className="min-w-0 flex-1">
         <CategoryBadge story={story} />
-        <span className="t-card mt-1 block text-[17px] leading-[22px] text-charcoal group-hover:text-forest">{story.title}</span>
+        <span className="t-card mt-1 block text-[17px] leading-[21px] text-ink group-hover:underline group-hover:underline-offset-4">
+          <Headline story={story} />
+        </span>
         <span className="mt-2 block">
           <MetaRow story={story} />
         </span>
       </span>
-      {thumb && own && <StoryImg story={story} mini className="mt-1 h-[76px] w-[76px] shrink-0 rounded-lg" />}
+      {thumb && <Plate story={story} size="sm" className="mt-1 h-[64px] w-[64px] shrink-0" />}
     </Link>
   )
 }
 
 export function SectionHeader({ title, meta, seeAll }: { title: string; meta?: string; seeAll?: string; subtitle?: string }) {
   return (
-    <div className="mb-4 px-6 sm:px-8">
-      <div className="flex items-baseline justify-between gap-4">
-        <h2 className="t-h2 text-charcoal">{title}</h2>
+    <div className="mb-3 px-6 sm:px-8">
+      <div className="rule-strong flex items-baseline justify-between gap-4 pt-2.5">
+        <h2 className="t-eyebrow text-ink">{title}</h2>
         {seeAll && (
-          <Link to={seeAll} className="t-meta -my-3 inline-flex shrink-0 items-center gap-1 py-3 text-charcoal-400 hover:text-forest">
+          <Link to={seeAll} className="t-eyebrow -my-3 inline-flex min-h-[44px] shrink-0 items-center gap-1 text-ink-soft hover:text-ink">
             See all <ArrowRight className="h-3 w-3" />
           </Link>
         )}
       </div>
-      {meta && <p className="t-meta mt-1 text-charcoal-400">{meta}</p>}
+      {meta && <p className="t-meta mt-1 text-ink-soft">{meta}</p>}
     </div>
   )
 }
@@ -318,8 +319,14 @@ export function Row({
 
 /* ---------- Basics ---------- */
 
+// Word mark with a lime full stop.
 export function Logo({ className = '' }: { className?: string }) {
-  return <span className={`font-serif text-[28px] font-semibold leading-none tracking-[-0.02em] text-charcoal ${className}`}>Unhyped</span>
+  return (
+    <span className={`inline-flex items-baseline text-[24px] font-bold leading-none tracking-[-0.05em] text-ink ${className}`}>
+      Unhyped
+      <span aria-hidden className="ml-[2px] inline-block h-[7px] w-[7px] bg-lime ring-1 ring-ink/80" />
+    </span>
+  )
 }
 
 export function Button({
@@ -329,11 +336,11 @@ export function Button({
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'terra' }) {
   const base =
-    'press inline-flex min-h-[48px] items-center justify-center gap-2 rounded-card px-6 py-3 text-[15px] font-medium disabled:opacity-40'
+    'press inline-flex min-h-[48px] items-center justify-center gap-2 px-6 py-3 text-[15px] font-semibold tracking-[-0.01em] disabled:opacity-40'
   const v = {
-    primary: 'bg-forest text-sand hover:bg-forest-600',
-    secondary: 'border border-rule bg-transparent text-charcoal hover:bg-sand-200',
-    terra: 'bg-terra text-white hover:bg-terra-600',
+    primary: 'bg-ink text-paper hover:bg-ink/85',
+    secondary: 'border border-ink bg-transparent text-ink hover:bg-paper-2',
+    terra: 'bg-lime text-lime-ink hover:brightness-95',
   }[variant]
   return (
     <button className={`${base} ${v} ${className}`} {...rest}>
@@ -342,22 +349,20 @@ export function Button({
   )
 }
 
-// One check style everywhere: forest disc with a check when on, a quiet ring when off.
+// One check style everywhere: a filled ink square with a check when on, an outlined square when off.
 export function Check({ on, dark = false }: { on: boolean; dark?: boolean }) {
   return on ? (
-    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-forest text-sand">
+    <span className="grid h-6 w-6 shrink-0 place-items-center bg-ink text-paper">
       <CheckIcon className="h-3.5 w-3.5" strokeWidth={3} />
     </span>
   ) : (
-    <span className={`block h-6 w-6 shrink-0 rounded-full border-[1.5px] ${dark ? 'border-sand/90 bg-charcoal/20' : 'border-charcoal/25'}`} />
+    <span className={`block h-6 w-6 shrink-0 border-[1.5px] ${dark ? 'border-paper/90' : 'border-ink/40'}`} />
   )
 }
 
 export function ArrowCircle({ dark = false }: { dark?: boolean }) {
   return (
-    <span
-      className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border ${dark ? 'border-sand/40 text-sand' : 'border-rule text-charcoal group-hover:bg-sand-200'}`}
-    >
+    <span className={`grid h-11 w-11 shrink-0 place-items-center border ${dark ? 'border-paper/50 text-paper' : 'border-ink text-ink group-hover:bg-paper-2'}`}>
       <ArrowRight className="h-5 w-5" />
     </span>
   )

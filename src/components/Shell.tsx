@@ -1,14 +1,13 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { Bookmark, BookOpen, Home, Settings } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Logo } from './ui'
-import { today } from '../lib/feed'
+import { issueDate, issueNo } from '../lib/feed'
 
 const tabs = [
-  { to: '/', label: 'Home', icon: Home },
-  { to: '/brief', label: 'Briefing', icon: BookOpen },
-  { to: '/saved', label: 'Saved', icon: Bookmark },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/', label: 'Issue' },
+  { to: '/brief', label: 'Briefing' },
+  { to: '/saved', label: 'Saved' },
+  { to: '/settings', label: 'Settings' },
 ]
 
 export default function Shell() {
@@ -17,6 +16,7 @@ export default function Shell() {
     window.scrollTo(0, 0)
   }, [pathname])
   const isStory = pathname.startsWith('/story/')
+  const isBrief = pathname === '/brief'
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
     const on = () => setScrolled(window.scrollY > 8)
@@ -26,29 +26,33 @@ export default function Shell() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-sand">
-      <header
-        className={`sticky top-0 z-30 border-b transition-colors ${scrolled ? 'border-rule bg-sand/85 backdrop-blur-md' : 'border-transparent bg-sand'} ${isStory ? 'hidden sm:block' : ''}`}
-      >
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-6 px-6 sm:h-16 sm:px-8">
-          <NavLink to="/" aria-label="Unhyped home" className="py-2">
-            <Logo />
-          </NavLink>
-          <nav className="mr-auto hidden gap-1 sm:flex">
-            {tabs.map((t) => (
-              <NavLink
-                key={t.to}
-                to={t.to}
-                end
-                className={({ isActive }) =>
-                  `t-meta inline-flex h-11 items-center px-3 transition ${isActive ? 'text-charcoal underline decoration-forest decoration-2 underline-offset-[6px]' : 'text-charcoal-400 hover:text-charcoal'}`
-                }
-              >
-                {t.label}
-              </NavLink>
-            ))}
-          </nav>
-          <span className="t-meta text-charcoal-400">{today()}</span>
+    <div className="min-h-screen bg-paper text-ink">
+      {/* Masthead: word mark, issue number and date, on a 2px rule */}
+      <header className={`sticky top-0 z-30 bg-paper ${isStory || isBrief ? 'hidden sm:block' : ''}`}>
+        <div className="mx-auto max-w-7xl px-6 sm:px-8">
+          <div className={`flex h-14 items-center justify-between gap-6 border-b-2 border-ink sm:h-16 ${scrolled ? '' : ''}`}>
+            <NavLink to="/" aria-label="Unhyped, today's issue" className="flex min-h-[44px] items-center">
+              <Logo />
+            </NavLink>
+            <nav className="mr-auto hidden gap-1 sm:flex">
+              {tabs.map((t) => (
+                <NavLink
+                  key={t.to}
+                  to={t.to}
+                  end
+                  className={({ isActive }) =>
+                    `t-eyebrow inline-flex h-11 items-center px-3 ${isActive ? 'text-ink underline decoration-2 underline-offset-[6px]' : 'text-ink-soft hover:text-ink'}`
+                  }
+                >
+                  {t.label}
+                </NavLink>
+              ))}
+            </nav>
+            <span className="t-meta text-right text-ink-soft">
+              No. {issueNo()}
+              <span className="block sm:ml-2 sm:inline">{issueDate()}</span>
+            </span>
+          </div>
         </div>
       </header>
 
@@ -56,7 +60,7 @@ export default function Shell() {
         <Outlet />
       </main>
 
-      <nav aria-label="Main" className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-rule bg-sand sm:hidden">
+      <nav aria-label="Main" className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t-2 border-ink bg-paper sm:hidden">
         <div className="grid grid-cols-4">
           {tabs.map((t) => (
             <NavLink
@@ -64,14 +68,12 @@ export default function Shell() {
               to={t.to}
               end
               className={({ isActive }) =>
-                `press flex min-h-[52px] flex-col items-center justify-center gap-1 pt-2 text-[11px] font-medium tracking-[0.02em] ${isActive ? 'text-forest' : 'text-charcoal-400'}`
+                `press relative flex min-h-[52px] items-center justify-center t-eyebrow ${isActive ? 'text-ink' : 'text-ink-soft'}`
               }
             >
               {({ isActive }) => (
                 <>
-                  <t.icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.75} />
-                  {t.label}
-                  <span className={`h-[2px] w-4 rounded-full ${isActive ? 'bg-forest' : 'bg-transparent'}`} />
+                  <span className={isActive ? 'mark' : ''}>{t.label}</span>
                 </>
               )}
             </NavLink>

@@ -3,10 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import { Check as CheckIcon, RotateCcw } from 'lucide-react'
 import type { Depth, Topic } from '../data/types'
 import { allTopics, areas, depthInfo, topicInfo } from '../data/topics'
-import { usePrefs } from '../lib/prefs'
+import { usePrefs, type Theme } from '../lib/prefs'
 import { Check } from '../components/ui'
 
 const times = ['07:00', '08:00', '12:30', '18:00', '21:00']
+const themes: { id: Theme; name: string; desc: string }[] = [
+  { id: 'auto', name: 'Automatic', desc: 'Dark from 19:00 to 06:00' },
+  { id: 'light', name: 'Light', desc: 'Paper, all day' },
+  { id: 'dark', name: 'Dark', desc: 'Ink, all day' },
+]
 
 export default function Settings() {
   const { prefs, update, reset } = usePrefs()
@@ -81,7 +86,7 @@ export default function Settings() {
           <section key={t} className="mt-7">
             <div className="flex items-baseline justify-between gap-4">
               <h3 className="t-eyebrow text-charcoal-500">{topicInfo[t].name} areas</h3>
-              <button onClick={() => selectAll(t)} className="t-meta -my-3 py-3 text-forest hover:text-charcoal">
+              <button onClick={() => selectAll(t)} className="t-meta -my-3 min-h-[44px] text-forest hover:text-charcoal">
                 {allOn ? 'Clear all' : 'Select all'}
               </button>
             </div>
@@ -129,6 +134,27 @@ export default function Settings() {
       </section>
 
       <section className="mt-6 border-t border-rule pt-6">
+        <h2 className="t-eyebrow text-sage-ink">Display</h2>
+        <div role="radiogroup" aria-label="Display" className="mt-3 grid grid-cols-3 gap-2">
+          {themes.map((t) => {
+            const on = prefs.theme === t.id
+            return (
+              <button
+                key={t.id}
+                role="radio"
+                aria-checked={on}
+                onClick={() => update({ theme: t.id })}
+                className={`press flex min-h-[64px] flex-col items-start justify-center border px-3 py-2 text-left ${on ? 'border-2 border-ink' : 'border-rule hover:border-ink'}`}
+              >
+                <span className="text-[15px] font-semibold">{t.name}</span>
+                <span className="t-meta mt-0.5 text-ink-soft">{t.desc}</span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
+      <section className="mt-6 border-t border-rule pt-6">
         <h2 className="t-eyebrow text-sage-ink">Daily briefing</h2>
         <div className="mt-3">
           <div className="flex min-h-[56px] items-center gap-4 py-2">
@@ -140,7 +166,7 @@ export default function Settings() {
               value={prefs.briefTime ?? '08:00'}
               onChange={(e) => update({ briefTime: e.target.value })}
               className="tnum h-11 appearance-none rounded-card border border-charcoal/15 bg-transparent bg-[length:14px] bg-[right_12px_center] bg-no-repeat pl-4 pr-9 text-[15px] font-medium"
-              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231F1F1F' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")" }}
+              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23777A72' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")" }}
             >
               {times.map((t) => (
                 <option key={t}>{t}</option>
@@ -157,7 +183,7 @@ export default function Settings() {
               aria-checked={prefs.reminder}
               aria-label="Briefing reminder"
               onClick={() => update({ reminder: !prefs.reminder })}
-              className={`relative h-7 w-12 shrink-0 rounded-full transition ${prefs.reminder ? 'bg-forest' : 'bg-charcoal/20'}`}
+              className={`relative h-7 w-12 shrink-0 transition before:absolute before:-inset-y-[9px] before:inset-x-0 before:content-[''] ${prefs.reminder ? 'bg-forest' : 'bg-charcoal/20'}`}
             >
               <span className={`absolute top-1 h-5 w-5 rounded-full bg-sand transition-all ${prefs.reminder ? 'left-6' : 'left-1'}`} />
             </button>
