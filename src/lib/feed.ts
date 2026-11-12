@@ -1,4 +1,4 @@
-import { getClicks, getStories } from './stories'
+import { getStories } from './stories'
 import { areas, topicInfo } from '../data/topics'
 import type { Depth, Story, Topic } from '../data/types'
 
@@ -44,7 +44,6 @@ export function buildHome(topics: Topic[], depth: Depth, myAreas: string[], filt
   const must = rest.filter((s) => s.importance === 3 && s.label !== 'rumor').slice(0, 4)
 
   const rows: HomeRow[] = []
-  const clicks = getClicks()
   // Relevance: areas you picked count most, then importance, then freshness.
   const relevance = (s: Story) =>
     (myAreas.includes(s.area) ? 150 : 0) + (topics[0] === s.topic ? 20 : 0) + s.importance * 60 - s.hoursAgo
@@ -62,15 +61,9 @@ export function buildHome(topics: Topic[], depth: Depth, myAreas: string[], filt
     items: rest.filter((s) => s.hoursAgo <= 24).sort((a, b) => b.mergedCount - a.mergedCount || a.hoursAgo - b.hoursAgo),
   })
   rows.push({
-    id: 'clicked',
-    title: 'Most clicked this week',
-    subtitle: 'What readers opened the most',
-    items: [...heroes, ...rest].filter((s) => clicks[s.id]).sort((a, b) => clicks[b.id] - clicks[a.id]),
-  })
-  rows.push({
     id: 'trending',
-    title: 'Most trending this week',
-    subtitle: 'The stories with the most sources',
+    title: 'Most talked about this week',
+    subtitle: 'Covered by the most outlets and communities',
     items: [...rest].sort((a, b) => b.mergedCount - a.mergedCount || b.trending - a.trending),
   })
   rows.push({

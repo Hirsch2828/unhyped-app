@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Clock, Lightbulb, Share2 } from 'lucide-react'
-import { findStory, recordView, useStories } from '../lib/stories'
+import { findStory, useStories } from '../lib/stories'
 import { usePrefs } from '../lib/prefs'
 import { LabelTag, Row, SaveButton, StoryCard, TopicPill, labelHint, StoryImg } from '../components/ui'
 import SignupSheet from '../components/SignupSheet'
@@ -16,10 +16,7 @@ export default function StoryPage() {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    if (story) {
-      markRead(story.id)
-      recordView(story.id)
-    }
+    if (story) markRead(story.id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, !!story])
 
