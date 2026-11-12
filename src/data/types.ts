@@ -30,4 +30,6 @@ export interface Story {
   image: string
   /** true when the image was drawn by AI: the UI shows an "Illustration" badge */
   illustration?: boolean
+  /** false when the story only has a shared library image (then the UI shows a typographic card) */
+  ownImage?: boolean
 }

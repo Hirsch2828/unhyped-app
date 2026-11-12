@@ -1,19 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Clock, FileText, Layers, Lightbulb } from 'lucide-react'
-import { feedFor, today } from '../lib/feed'
+import { briefItems, feedFor } from '../lib/feed'
 import { useStories } from '../lib/stories'
 import { usePrefs } from '../lib/prefs'
 import { topicInfo } from '../data/topics'
-import { ArrowCircle, LabelTag, TopicPill, StoryImg } from '../components/ui'
+import { CategoryBadge, ImageScope, StoryImg, TrustMark, plural } from '../components/ui'
 
 export default function Brief() {
   const { prefs } = usePrefs()
   useStories()
-  const items = feedFor(prefs.topics, 'balanced')
-    .filter((s) => s.label !== 'rumor')
-    .sort((a, b) => b.importance - a.importance || a.hoursAgo - b.hoursAgo)
-    .slice(0, 6)
+  const items = briefItems(prefs.topics)
   const rumors = feedFor(prefs.topics, 'everything').filter((s) => s.label === 'rumor')
   const [progress, setProgress] = useState(0)
 
@@ -27,117 +23,78 @@ export default function Brief() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  const top = items[0]
-  const side = items.slice(1, 4)
   const names = prefs.topics.map((t) => topicInfo[t].name)
 
   return (
-    <div className="fade-in">
-      <div className="sticky top-16 z-20 h-1 bg-sand-200">
-        <div className="h-full bg-forest transition-[width]" style={{ width: `${progress * 100}%` }} />
-      </div>
-
-      <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-8">
-        <div className="grid items-center gap-8 md:grid-cols-[1fr_1.1fr]">
-          <div>
-            <p className="text-sm uppercase tracking-[0.18em] text-charcoal-500">Your</p>
-            <h1 className="font-serif text-5xl font-semibold leading-[1.02] sm:text-6xl">5-Minute Briefing</h1>
-            <p className="mt-4 text-lg leading-snug text-charcoal-500">
-              The {items.length} most important developments in your areas today, in context.
-            </p>
-            <div className="mt-6 grid grid-cols-3 gap-2">
-              {[
-                { icon: FileText, a: `${items.length}`, b: 'stories' },
-                { icon: Clock, a: '~5 min', b: 'read' },
-                { icon: Layers, a: names.slice(0, 2).join(', '), b: names.length > 2 ? 'and more' : 'topics' },
-              ].map((x) => (
-                <div key={x.b} className="flex items-center gap-2 rounded-xl border border-sand-300/70 bg-sand-50 p-3">
-                  <x.icon className="h-5 w-5 shrink-0 text-charcoal-500" strokeWidth={1.5} />
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold">{x.a}</span>
-                    <span className="block text-xs text-charcoal-400">{x.b}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {top && (
-            <div className="relative hidden h-[360px] md:block">
-              <span className="absolute left-8 top-4 h-24 w-28 rounded-2xl bg-forest/80" />
-              <span className="absolute -right-2 top-0 h-16 w-20 rounded-xl bg-terra" />
-              <Link to={`/story/${top.id}`} className="group absolute left-14 top-8 z-10 h-[320px] w-[270px] overflow-hidden rounded-3xl shadow-xl">
-                <StoryImg story={top} className="h-full w-full" />
-                <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
-                <span className="absolute inset-x-0 bottom-0 flex items-end gap-3 p-4 text-white">
-                  <span>
-                    <span className="block text-[11px] uppercase tracking-wider text-white/80">Top story</span>
-                    <span className="mt-1 block font-serif text-xl font-semibold leading-tight">{top.title}</span>
-                  </span>
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-forest">→</span>
-                </span>
-              </Link>
-              <div className="absolute right-0 top-14 flex flex-col gap-3">
-                {side.map((s) => (
-                  <StoryImg key={s.id} story={s} mini className="h-24 w-32 rounded-2xl shadow-md" />
-                ))}
-              </div>
-            </div>
-          )}
+    <ImageScope>
+      <div className="fade-in">
+        <div className="sticky top-14 z-20 h-[2px] bg-transparent sm:top-16">
+          <div className="h-full bg-forest" style={{ width: `${progress * 100}%` }} />
         </div>
 
-        <p className="mt-8 text-sm text-charcoal-400">{today()}</p>
-        <ol className="relative mt-4 border-t border-sand-300/70 pt-6">
-          <span className="absolute bottom-6 left-[13px] top-10 w-px bg-sand-300 sm:left-[15px]" aria-hidden />
-          {items.map((s, i) => (
-            <li key={s.id} className="relative mb-6 flex gap-3 border-b border-sand-300/50 pb-6 last:border-0 sm:gap-5">
-              <span className="z-10 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-forest text-sm text-sand-50 sm:h-8 sm:w-8">{i + 1}</span>
-              <Link to={`/story/${s.id}`} className="group flex min-w-0 flex-1 flex-col gap-4 sm:flex-row">
-                <StoryImg story={s} className="h-40 w-full shrink-0 rounded-2xl sm:h-36 sm:w-48" />
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2 text-sm text-charcoal-400">
-                    <TopicPill topic={s.topic} /> {s.time} · <LabelTag label={s.label} />
-                  </span>
-                  <span className="mt-2 block font-serif text-2xl font-semibold leading-snug">{s.title}</span>
-                  <span className="mt-1 block text-charcoal-500">{s.dek}</span>
-                  <span className="mt-3 flex gap-3 rounded-xl bg-sand-200/70 p-3 text-sm">
-                    <Lightbulb className="h-5 w-5 shrink-0 text-honey" strokeWidth={1.5} />
-                    <span>
-                      <b className="font-semibold">Why it matters: </b>
-                      <span className="text-charcoal-500">{s.whyItMatters}</span>
+        <div className="mx-auto max-w-3xl px-6 pt-6 sm:px-8 sm:pt-10">
+          <h1 className="t-display sm:text-[44px] sm:leading-[50px]">Today in five minutes</h1>
+          <p className="t-meta mt-2 text-charcoal-400">
+            {plural(items.length, 'story', 'stories')} · ~5 min · {names.join(' & ')}
+          </p>
+
+          <ol className="mt-8 border-b border-rule">
+            {items.map((s, i) => (
+              <li key={s.id} className="flex gap-4 border-t border-rule pt-5">
+                <span className="w-8 shrink-0 font-serif text-[44px] font-semibold leading-[40px] text-olive-ink tnum">{i + 1}</span>
+                <Link to={`/story/${s.id}`} className="press group min-w-0 flex-1 pb-6">
+                  {i === 0 && <StoryImg story={s} size="lg" className="mb-4 aspect-[16/10] w-full rounded-media" />}
+                  <span className="flex gap-4">
+                    <span className="min-w-0 flex-1">
+                      <span className="t-meta flex flex-wrap items-center gap-x-2 gap-y-1 text-charcoal-400">
+                        <CategoryBadge story={s} />
+                        <span aria-hidden>·</span>
+                        <TrustMark label={s.label} />
+                      </span>
+                      <span className={`mt-1.5 block text-charcoal group-hover:text-forest ${i === 0 ? 't-h1' : 't-card'}`}>{s.title}</span>
                     </span>
+                    
                   </span>
-                </span>
-                <span className="hidden self-center sm:block">
-                  <ArrowCircle />
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ol>
+                  {i === 0 && <span className="mt-2 block text-charcoal-500">{s.dek}</span>}
+                  {i === 0 ? (
+                    <span className="mt-4 block border-l-[3px] border-honey pl-3">
+                      <span className="t-eyebrow block text-honey-ink">Why it matters</span>
+                      <span className="mt-1 block text-[16px] leading-[25px] text-charcoal">{s.whyItMatters}</span>
+                    </span>
+                  ) : (
+                    <span className="mt-2 block text-[15px] leading-[24px] text-charcoal-500">{s.whyItMatters}</span>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ol>
 
-        {rumors.length > 0 && (
-          <section className="rounded-2xl border border-honey/30 bg-honey-100/50 p-5">
-            <h2 className="font-serif text-xl font-semibold">You may also see this today</h2>
-            <p className="mt-1 text-sm text-charcoal-500">Unconfirmed. Listed so you know not to take it as fact.</p>
-            <ul className="mt-4 space-y-3">
-              {rumors.map((s) => (
-                <li key={s.id}>
-                  <Link to={`/story/${s.id}`} className="flex items-start gap-3 hover:underline">
-                    <span className="shrink-0 text-sm"><LabelTag label="rumor" /></span>
-                    <span>{s.title}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+          {rumors.length > 0 && (
+            <section className="-mx-6 mt-10 border-t border-dashed border-honey/60 bg-honey-100/40 px-6 pb-4 pt-6 sm:mx-0 sm:px-6">
+              <h2 className="t-h2">Also going around</h2>
+              <p className="t-meta mt-1 text-honey-ink">Not confirmed. Read with care.</p>
+              <ul className="mt-3">
+                {rumors.map((s) => (
+                  <li key={s.id}>
+                    <Link to={`/story/${s.id}`} className="press group flex min-h-[44px] items-baseline gap-3 border-t border-rule py-3 first:border-0">
+                      <span className="t-meta shrink-0 text-charcoal-400">
+                        <TrustMark label="rumor" />
+                      </span>
+                      <span className="font-serif text-[17px] font-semibold leading-[22px] group-hover:text-forest">{s.title}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
-        <div className="my-14 text-center">
-          <p className="font-serif text-3xl font-semibold">That’s everything.</p>
-          <p className="mt-1 text-charcoal-500">You’re up to date. See you tomorrow.</p>
+          <div className="my-12 border-t border-rule pt-6 text-center">
+            <p className="font-serif text-[22px] font-semibold italic">You’re all caught up.</p>
+            <p className="t-meta mt-1 text-charcoal-400">See you tomorrow.</p>
+          </div>
         </div>
       </div>
-    </div>
+    </ImageScope>
   )
 }
+

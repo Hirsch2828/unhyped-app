@@ -83,6 +83,7 @@ export function toStory(r: Row): Story {
     readMinutes: Math.max(1, Math.round(words / 200)),
     image: r.images?.path ?? fallbackImage[r.topic] ?? 'img/ai-hero.jpg',
     illustration: !!r.images?.tags?.includes('ai'),
+    ownImage: !!r.images?.tags?.includes('generated'),
   }
 }
 

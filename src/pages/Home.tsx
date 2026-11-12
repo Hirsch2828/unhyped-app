@@ -1,119 +1,148 @@
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowRight, ChevronRight, FileText } from 'lucide-react'
-import { buildHome, homeChips } from '../lib/feed'
+import { ArrowRight } from 'lucide-react'
+import { briefItems, buildHome, homeChips, type HomeRow } from '../lib/feed'
 import { usePrefs } from '../lib/prefs'
 import { useStories } from '../lib/stories'
 import { topicInfo } from '../data/topics'
+import type { Story } from '../data/types'
 import HeroCarousel from '../components/HeroCarousel'
-import { ArrowCircle, Icon, LabelTag, Row, SectionHeader, StoryCard, StoryImg, CategoryBadge, categoryOf } from '../components/ui'
+import { CompactRow, ImageScope, Row, SectionHeader, StoryCard, plural } from '../components/ui'
 
-const ROW_PREVIEW = 12
+const ROW_PREVIEW = 10
 
 export default function Home() {
   const { prefs } = usePrefs()
-  const { mode } = useStories()
+  useStories()
   const [params, setParams] = useSearchParams()
   const chips = homeChips(prefs.topics, prefs.depth)
   const filter = chips.some((c) => c.id === params.get('f')) ? params.get('f')! : 'all'
   const { heroes, must, rows } = buildHome(prefs.topics, prefs.depth, prefs.areas, filter)
-  const topicNames = prefs.topics.map((t) => topicInfo[t].name)
+  const brief = briefItems(prefs.topics)
   const q = filter === 'all' ? '' : `?f=${filter}`
-
   const pick = (id: string) => setParams(id === 'all' ? {} : { f: id }, { replace: true })
 
+  // Each story appears once on the page. Priority: Top > Most relevant > Trending > Latest > the rest.
+  const shown = new Set(heroes.map((s) => s.id))
+  const take = (items: Story[], n: number) => {
+    const out = items.filter((s) => !shown.has(s.id)).slice(0, n)
+    out.forEach((s) => shown.add(s.id))
+    return out
+  }
+  const byId = (id: string) => rows.find((r) => r.id === id)
+  const relevantRow = byId('relevant')
+  const now = byId('trending-now')
+  const trendRow = now && now.items.length >= 3 ? now : byId('trending') ?? now
+  const latestRow = byId('latest')
+  const relevant = take(relevantRow?.items ?? [], 3)
+  // A numbered list needs at least three entries; otherwise those stories flow into Latest.
+  const trendCandidates = (trendRow?.items ?? []).filter((s) => !shown.has(s.id))
+  const trending = trendCandidates.length >= 3 ? take(trendCandidates, 5) : []
+  const latest = take(latestRow?.items ?? [], 6)
+  const mustKnow = take(must, 6)
+  const rest = rows
+    .filter((r) => !['relevant', 'latest', trendRow?.id].includes(r.id))
+    .map((r): HomeRow & { preview: Story[] } => ({ ...r, preview: take(r.items, ROW_PREVIEW) }))
+    .filter((r) => r.preview.length >= 2)
+  const topicNames = prefs.topics.map((t) => topicInfo[t].name).join(' & ')
+
   return (
-    <div className="space-y-8 pt-4 sm:space-y-10 sm:pt-6">
-      <HeroCarousel stories={heroes} />
+    <ImageScope>
+      <div className="fade-in space-y-10 pb-2 sm:pt-6">
+        <HeroCarousel stories={heroes} />
 
-      <nav aria-label="Filter by area" className="-mt-2 sm:-mt-4">
-        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-1 sm:px-8">
-          {chips.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => pick(c.id)}
-              aria-pressed={filter === c.id}
-              className={`shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition ${
-                filter === c.id
-                  ? 'border-forest bg-forest text-sand-50'
-                  : 'border-sand-300/80 bg-sand-50 text-charcoal-500 hover:border-sage hover:text-charcoal'
-              }`}
-            >
-              <span className="inline-flex items-center gap-1.5">
-                {categoryOf(c.id) && <Icon name={categoryOf(c.id)!.icon} className="h-4 w-4" />}
-                {c.name}
-              </span>
-            </button>
-          ))}
-        </div>
-      </nav>
-
-      <Link
-        to="/brief"
-        className="group mx-4 flex items-center gap-4 rounded-2xl border border-sand-300/70 bg-sand-50 p-4 shadow-card transition hover:border-terra/50 sm:mx-8 sm:p-5"
-      >
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-terra text-white sm:h-14 sm:w-14">
-          <FileText className="h-6 w-6" />
-        </span>
-        <span className="flex-1">
-          <span className="block font-serif text-xl font-semibold">Your 5-Minute Briefing</span>
-          <span className="block text-sm text-charcoal-500">
-            Catch up on today’s top {topicNames.slice(0, 2).join(' and ')} updates, in a calm and clear summary.
-          </span>
-        </span>
-        <span className="hidden items-center gap-2 rounded-full bg-terra px-5 py-3 text-sm font-medium text-white transition group-hover:bg-terra-600 md:inline-flex">
-          Read your 5-minute brief <ArrowRight className="h-4 w-4" />
-        </span>
-        <ChevronRight className="h-5 w-5 text-charcoal-400 md:hidden" />
-      </Link>
-
-      {must.length > 0 && (
-        <section className="fade-in">
-          <SectionHeader title="Must know today" subtitle="The few that matter" />
-          <ol className="mx-4 grid grid-cols-1 gap-3 sm:mx-8 lg:grid-cols-2">
-            {must.map((s, i) => (
-              <li key={s.id} className="min-w-0">
-                <Link
-                  to={`/story/${s.id}`}
-                  className="group flex items-center gap-3 rounded-2xl border border-sand-300/70 bg-sand-50 p-3 transition hover:border-sage sm:gap-4"
+        <nav aria-label="Filter by area" className="-mt-4">
+          <div className="no-scrollbar fade-right flex gap-2 overflow-x-auto px-6 pr-12 sm:px-8">
+            {chips.map((c) => (
+              <button key={c.id} onClick={() => pick(c.id)} aria-pressed={filter === c.id} className="press flex h-11 shrink-0 items-center">
+                <span
+                  className={`flex h-9 items-center rounded-full border px-4 text-[14px] font-medium ${
+                    filter === c.id ? 'border-forest bg-forest text-sand' : 'border-rule text-charcoal-500 hover:border-charcoal/30 hover:text-charcoal'
+                  }`}
                 >
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-forest text-sm text-sand-50">{i + 1}</span>
-                  <StoryImg story={s} mini className="h-20 w-20 shrink-0 rounded-xl sm:w-24" />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-charcoal-400">
-                      <CategoryBadge story={s} className="!bg-sand-200/70 !shadow-none" /> <LabelTag label={s.label} />
-                    </span>
-                    <span className="mt-1 line-clamp-2 block font-serif text-[1.05rem] font-semibold leading-snug">{s.title}</span>
-                  </span>
-                  <span className="hidden sm:block">
-                    <ArrowCircle />
-                  </span>
-                </Link>
-              </li>
+                  {c.name}
+                </span>
+              </button>
             ))}
-          </ol>
-        </section>
-      )}
+          </div>
+        </nav>
 
-      {rows.map((r) => (
-        <Row
-          key={r.id}
-          title={r.title}
-          subtitle={r.subtitle}
-          seeAll={r.items.length > 3 ? `/c/${r.id}${q}` : undefined}
-        >
-          {r.items.slice(0, ROW_PREVIEW).map((s) => (
-            <StoryCard key={s.id} story={s} />
-          ))}
-        </Row>
-      ))}
+        <Link to="/brief" className="press group mx-6 flex items-center gap-4 rounded-card bg-forest px-5 py-5 text-sand sm:mx-8 sm:px-7">
+          <span className="min-w-0 flex-1">
+            <span className="t-eyebrow block text-olive">Today’s briefing</span>
+            <span className="t-h2 mt-1.5 block">Your 5-minute read</span>
+            <span className="t-meta mt-1.5 block text-sand/75">
+              {plural(brief.length, 'story', 'stories')} · ~5 min · {topicNames}
+            </span>
+          </span>
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-sand/30 transition group-hover:bg-sand group-hover:text-forest">
+            <ArrowRight className="h-5 w-5" />
+          </span>
+        </Link>
 
-      {!heroes.length && (
-        <p className="px-4 text-center text-charcoal-500 sm:px-8">No stories here this week yet. Try another area.</p>
-      )}
+        {relevant.length > 0 && (
+          <section>
+            <SectionHeader title="Most relevant for you" seeAll={`/c/relevant${q}`} />
+            <div className="px-6 sm:grid sm:grid-cols-[1.2fr_1fr] sm:gap-8 sm:px-8">
+              <StoryCard story={relevant[0]} wide />
+              <div className="mt-4 sm:mt-0">
+                {relevant.slice(1).map((s) => (
+                  <CompactRow key={s.id} story={s} thumb />
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
-      <p className="px-4 text-center text-xs text-charcoal-400 sm:px-8">
-        {mode === 'live' ? "You're all caught up." : 'Sample stories for the demo. You are all caught up.'}
-      </p>
-    </div>
+        {trending.length > 0 && trendRow && (
+          <section>
+            <SectionHeader title={trendRow.title} seeAll={trendRow.items.length > 5 ? `/c/${trendRow.id}${q}` : undefined} />
+            <ol className="px-6 sm:grid sm:grid-cols-2 sm:gap-x-8 sm:px-8">
+              {trending.map((s, i) => (
+                <li key={s.id}>
+                  <CompactRow
+                    story={s}
+                    lead={<span className="w-8 shrink-0 font-serif text-[40px] font-semibold leading-[36px] text-olive tnum">{i + 1}</span>}
+                  />
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
+        {latest.length > 0 && (
+          <section>
+            <SectionHeader title="Latest" seeAll={`/c/latest${q}`} />
+            <div className="px-6 sm:grid sm:grid-cols-2 sm:gap-x-8 sm:px-8">
+              {latest.map((s) => (
+                <CompactRow key={s.id} story={s} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {mustKnow.length > 0 && (
+          <Row title="Must know today">
+            {mustKnow.map((s) => (
+              <StoryCard key={s.id} story={s} />
+            ))}
+          </Row>
+        )}
+
+        {rest.map((r) => (
+          <Row key={r.id} title={r.title} subtitle={r.id === 'rumors' ? r.subtitle : undefined} seeAll={r.items.length > r.preview.length ? `/c/${r.id}${q}` : undefined}>
+            {r.preview.map((s) => (
+              <StoryCard key={s.id} story={s} />
+            ))}
+          </Row>
+        ))}
+
+        {!heroes.length && <p className="px-6 text-center text-charcoal-500 sm:px-8">No stories here this week yet. Try another area.</p>}
+
+        <div className="mx-6 border-t border-rule pt-6 text-center sm:mx-8">
+          <p className="font-serif text-[19px] font-semibold italic text-charcoal">You’re all caught up.</p>
+          <p className="t-meta mt-1 text-charcoal-400">New stories arrive through the day.</p>
+        </div>
+      </div>
+    </ImageScope>
   )
 }

@@ -111,3 +111,11 @@ export function timeAgo(h: number) {
 
 export const today = () =>
   new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+
+// The daily brief: the 6 most important confirmed stories (shared by Home's banner and the Brief page).
+export function briefItems(topics: Topic[]) {
+  return feedFor(topics, 'balanced')
+    .filter((s) => s.label !== 'rumor')
+    .sort((a, b) => b.importance - a.importance || a.hoursAgo - b.hoursAgo)
+    .slice(0, 6)
+}
