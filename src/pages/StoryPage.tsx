@@ -4,7 +4,7 @@ import { ArrowLeft, Clock, ExternalLink, Lightbulb, Share2 } from 'lucide-react'
 import { findStory, useStories } from '../lib/stories'
 import { usePrefs } from '../lib/prefs'
 import { timeAgo } from '../lib/feed'
-import { LabelTag, Row, SaveButton, StoryCard, TopicPill, labelHint, StoryImg } from '../components/ui'
+import { CategoryBadge, LabelTag, Row, SaveButton, StoryCard, labelHint, StoryImg } from '../components/ui'
 import SignupSheet from '../components/SignupSheet'
 
 export default function StoryPage() {
@@ -44,7 +44,11 @@ export default function StoryPage() {
       /* user cancelled */
     }
   }
-  const related = stories.filter((s) => s.id !== story.id && prefs.topics.includes(s.topic)).slice(0, 6)
+  const others = stories.filter((s) => s.id !== story.id && prefs.topics.includes(s.topic))
+  const related = [
+    ...others.filter((s) => s.area && s.area === story.area),
+    ...others.filter((s) => s.topic === story.topic && s.area !== story.area),
+  ].slice(0, 8)
 
   return (
     <article className="fade-in">
@@ -67,7 +71,7 @@ export default function StoryPage() {
 
         <div className="px-4 pt-6 sm:px-0">
           <div className="flex flex-wrap items-center gap-2 text-sm text-charcoal-500">
-            <TopicPill topic={story.topic} />
+            <CategoryBadge story={story} className="!bg-sand-200/80 !shadow-none" />
             <span>{story.hoursAgo < 24 ? `${story.time} · Today` : timeAgo(story.hoursAgo)}</span>
           </div>
           <h1 className="mt-3 font-serif text-[2rem] font-semibold leading-tight sm:text-5xl">{story.title}</h1>
@@ -116,7 +120,7 @@ export default function StoryPage() {
 
           <section className="mt-8">
             <h2 className="font-serif text-2xl font-semibold">What happened</h2>
-            <div className="mt-3 space-y-3 leading-relaxed text-charcoal-500">
+            <div className="mt-3 space-y-4 text-[1.05rem] leading-8 text-charcoal-500">
               {story.whatHappened
                 .split(/\n\s*\n/)
                 .filter(Boolean)
@@ -157,7 +161,8 @@ export default function StoryPage() {
                     className="group flex items-start justify-between gap-4 p-4 transition hover:bg-sand-200/60"
                   >
                     <div className="min-w-0">
-                      <p className="inline-flex items-center gap-1.5 font-medium group-hover:text-forest">
+                      <p className="inline-flex items-center gap-2 font-medium group-hover:text-forest">
+                        <SourceIcon url={s.url} />
                         {s.name} <ExternalLink className="h-3.5 w-3.5 text-charcoal-400" />
                       </p>
                       <p className="text-sm text-charcoal-500">{s.claim}</p>
@@ -173,7 +178,7 @@ export default function StoryPage() {
 
       {related.length > 0 && (
         <div className="mt-12">
-          <Row title="More like this">
+          <Row title="More like this" subtitle={story.area ? "Same area first" : undefined}>
             {related.map((s) => (
               <StoryCard key={s.id} story={s} />
             ))}
@@ -183,5 +188,24 @@ export default function StoryPage() {
 
       {sheet && <SignupSheet onClose={() => setSheet(false)} />}
     </article>
+  )
+}
+
+// Small site icon next to each source (served by the source's own domain through a public favicon service).
+function SourceIcon({ url }: { url: string }) {
+  let host = ''
+  try {
+    host = new URL(url).hostname
+  } catch {
+    return null
+  }
+  return (
+    <img
+      src={`https://icons.duckduckgo.com/ip3/${host}.ico`}
+      alt=""
+      loading="lazy"
+      className="h-4 w-4 shrink-0 rounded-sm"
+      onError={(e) => (e.currentTarget.style.display = 'none')}
+    />
   )
 }
