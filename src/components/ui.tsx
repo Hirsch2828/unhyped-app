@@ -40,7 +40,7 @@ function Tag({ label, light }: { label: Label; light?: boolean }) {
     report: `border ${ink}`,
     rumor: `border border-dashed ${ink}`,
   }[label]
-  return <span className={`t-eyebrow inline-flex h-[18px] items-center px-1.5 leading-none ${cls}`}>{labelInfo[label].text}</span>
+  return <span className={`t-tag inline-flex h-[20px] items-center px-1.5 leading-none ${cls}`}>{labelInfo[label].text}</span>
 }
 
 // Trust label shown the same way everywhere. With `explain`, a tap opens the plain-language meaning.
@@ -183,21 +183,64 @@ export function Plate({ story, size = 'md', className = '' }: { story: Pick<Stor
   )
 }
 
-// Old name, now always a plate (kept so every page keeps working).
+type PhotoStory = Pick<Story, 'id' | 'image' | 'illustration' | 'title' | 'topic' | 'area' | 'ownImage' | 'label' | 'photo' | 'photoCredit'>
+
+// The story's picture, in one warm black-and-white treatment. Order: a real photo from the sources,
+// then the story's own AI illustration, then the typographic plate. `credit` shows who it comes from.
+export function Photo({
+  story,
+  className = '',
+  credit = false,
+  size = 'md',
+  eager = false,
+}: {
+  story: PhotoStory
+  className?: string
+  credit?: boolean
+  size?: 'sm' | 'md' | 'lg'
+  eager?: boolean
+}) {
+  // Try the real photo, then the illustration, then fall back to the plate if both fail to load.
+  const options = [story.photo ? 'photo' : null, story.ownImage ? 'image' : null].filter(Boolean) as ('photo' | 'image')[]
+  const [failed, setFailed] = useState(0)
+  const kind = options[failed]
+  if (!kind) return <Plate story={story} size={size} className={className} />
+  const real = kind === 'photo'
+  const src = real ? story.photo! : story.image
+  return (
+    <div className={`photo ${className}`}>
+      <img
+        src={src}
+        alt=""
+        loading={eager ? 'eager' : 'lazy'}
+        decoding="async"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed((f) => f + 1)}
+      />
+      {credit && (
+        <span className="t-meta absolute bottom-0 left-0 max-w-[85%] truncate bg-paper px-2 py-1 text-ink-soft">
+          {real ? `Photo: ${story.photoCredit ?? 'source'}` : 'Illustration · AI'}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// Old name, kept so every page keeps working.
 export function StoryImg({
   story,
   className = '',
   mini = false,
   size,
 }: {
-  story: Pick<Story, 'id' | 'image' | 'illustration' | 'title' | 'topic' | 'area' | 'ownImage' | 'label'>
+  story: PhotoStory
   className?: string
   imgClassName?: string
   mini?: boolean
   size?: 'sm' | 'md' | 'lg'
   badgeTop?: boolean
 }) {
-  return <Plate story={story} size={size ?? (mini ? 'sm' : 'md')} className={className} />
+  return <Photo story={story} size={size ?? (mini ? 'sm' : 'md')} className={className} />
 }
 
 // Headline with the one phrase that carries the news under the lime highlighter.
@@ -237,24 +280,26 @@ export function SaveButton({ story, onSaved, className = '', light = false }: { 
 
 /* ---------- Story layouts ---------- */
 
-// Card for horizontal rows: plate, desk, headline, meta. Read stories fade.
-export function StoryCard({ story, wide = false }: { story: Story; wide?: boolean }) {
+// Card: picture, desk, headline, meta. On a phone it turns into a row with the picture on the right. Read stories fade.
+export function StoryCard({ story, wide = false, rowOnPhone = false }: { story: Story; wide?: boolean; rowOnPhone?: boolean }) {
   const { prefs } = usePrefs()
   const read = prefs.read.includes(story.id)
   return (
     <Link
       to={`/story/${story.id}`}
-      className={`press group flex shrink-0 snap-start flex-col ${wide ? 'w-full' : 'w-[70vw] max-w-[280px] sm:w-[280px]'} ${read ? 'opacity-55' : ''}`}
+      className={`press group flex ${rowOnPhone ? 'flex-row-reverse items-start gap-4 border-t border-rule py-4 sm:flex-col sm:gap-0 sm:border-0 sm:py-0' : 'flex-col'} ${wide || rowOnPhone ? 'w-full' : 'w-[70vw] max-w-[280px] shrink-0 snap-start sm:w-[280px]'} ${read ? 'opacity-55' : ''}`}
     >
-      <Plate story={story} className="aspect-[4/3] w-full" />
-      <CategoryBadge story={story} className="mt-3" />
-      <h3 className="t-card mt-1 text-ink group-hover:underline group-hover:decoration-2 group-hover:underline-offset-4">
-        <Headline story={story} />
-      </h3>
-      <div className="mt-2 flex items-center justify-between">
-        <MetaRow story={story} />
-        <SaveButton story={story} className="-my-3 -mr-3" />
-      </div>
+      <Photo story={story} className={`${rowOnPhone ? 'h-24 w-24 shrink-0 sm:h-auto sm:w-full' : 'w-full'} sm:aspect-[3/2] ${rowOnPhone ? '' : 'aspect-[3/2]'}`} />
+      <span className="min-w-0 flex-1">
+        <CategoryBadge story={story} className={rowOnPhone ? 'sm:mt-3' : 'mt-3'} />
+        <h3 className="mt-1 text-[18px] font-semibold leading-[22px] tracking-[-0.015em] text-ink group-hover:underline group-hover:decoration-2 group-hover:underline-offset-4 sm:text-[21px] sm:font-bold sm:leading-[25px]">
+          <Headline story={story} />
+        </h3>
+        <span className="mt-2 flex items-center justify-between">
+          <MetaRow story={story} />
+          <SaveButton story={story} className="-my-3 -mr-3 hidden sm:grid" />
+        </span>
+      </span>
     </Link>
   )
 }
@@ -266,16 +311,16 @@ export function CompactRow({ story, lead, thumb = false }: { story: Story; lead?
   return (
     <Link to={`/story/${story.id}`} className={`press group flex gap-4 border-t border-rule py-4 ${read ? 'opacity-55' : ''}`}>
       {lead}
+      {thumb && <Photo story={story} size="sm" className="h-[72px] w-[96px] shrink-0 sm:h-20 sm:w-[120px]" />}
       <span className="min-w-0 flex-1">
         <CategoryBadge story={story} />
-        <span className="t-card mt-1 block text-[17px] leading-[21px] text-ink group-hover:underline group-hover:underline-offset-4">
+        <span className="mt-1 block text-[18px] font-semibold leading-[22px] tracking-[-0.015em] text-ink group-hover:underline group-hover:underline-offset-4 sm:text-[19px] sm:leading-[24px]">
           <Headline story={story} />
         </span>
         <span className="mt-2 block">
           <MetaRow story={story} />
         </span>
       </span>
-      {thumb && <Plate story={story} size="sm" className="mt-1 h-[64px] w-[64px] shrink-0" />}
     </Link>
   )
 }
@@ -283,15 +328,15 @@ export function CompactRow({ story, lead, thumb = false }: { story: Story; lead?
 export function SectionHeader({ title, meta, seeAll }: { title: string; meta?: string; seeAll?: string; subtitle?: string }) {
   return (
     <div className="mb-3 px-6 sm:px-8">
-      <div className="rule-strong flex items-baseline justify-between gap-4 pt-2.5">
-        <h2 className="t-eyebrow text-ink">{title}</h2>
+      <div className="rule-strong flex items-baseline justify-between gap-4 pt-3">
+        <h2 className="t-section text-ink">{title}</h2>
         {seeAll && (
           <Link to={seeAll} className="t-eyebrow -my-3 inline-flex min-h-[44px] shrink-0 items-center gap-1 text-ink-soft hover:text-ink">
             See all <ArrowRight className="h-3 w-3" />
           </Link>
         )}
       </div>
-      {meta && <p className="t-meta mt-1 text-ink-soft">{meta}</p>}
+      {meta && <p className="mt-1 text-[15px] text-ink-soft">{meta}</p>}
     </div>
   )
 }

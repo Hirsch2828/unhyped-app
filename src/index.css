@@ -38,8 +38,12 @@ body { -webkit-font-smoothing: antialiased; font-family: "Space Grotesk", Heebo,
   .t-h2 { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 21px; line-height: 25px; font-weight: 700; letter-spacing: -0.02em; }
   .t-card { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 19px; line-height: 23px; font-weight: 600; letter-spacing: -0.02em; }
   .t-body { font-size: 16.5px; line-height: 25.5px; letter-spacing: -0.005em; }
-  .t-meta { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px; line-height: 16px; font-weight: 500; letter-spacing: 0.03em; font-variant-numeric: tabular-nums; }
-  .t-eyebrow { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10.5px; line-height: 14px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; }
+  .t-meta { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px; line-height: 17px; font-weight: 500; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
+  /* Desk names, section labels and small buttons: plain sans, not mono (redesign 2026-11-15). */
+  .t-eyebrow { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 14px; line-height: 18px; font-weight: 600; letter-spacing: -0.005em; }
+  /* Trust tags only: small mono capitals. */
+  .t-tag { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px; line-height: 14px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+  .t-section { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 22px; line-height: 26px; font-weight: 700; letter-spacing: -0.02em; }
 
   /* The highlighter: lime behind dark ink, never lime text. */
   .mark { background: linear-gradient(transparent 12%, var(--lime) 12%, var(--lime) 92%, transparent 92%); color: #171815; padding: 0 2px; margin: 0 -2px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
@@ -62,6 +66,11 @@ body { -webkit-font-smoothing: antialiased; font-family: "Space Grotesk", Heebo,
 
 .fade-in { animation: rise 160ms var(--ease) both; }
 @keyframes rise { from { opacity: 0; } to { opacity: 1; } }
+
+/* One treatment for every photo and illustration: warm black and white. */
+.photo { background: #171815; overflow: hidden; position: relative; }
+.photo img { display: block; width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) sepia(.22) contrast(1.06); transition: transform 600ms var(--ease); }
+a:hover .photo img { transform: scale(1.02); }
 
 /* Halftone field used by story plates */
 .halftone { background-image: radial-gradient(rgb(var(--ink) / 0.9) 0.9px, transparent 1.2px); background-size: 6px 6px; }

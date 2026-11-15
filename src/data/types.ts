@@ -28,6 +28,9 @@ export interface Story {
   trending: number
   readMinutes: number
   image: string
+  /** a real photo from one of the sources (official first), shown with a credit */
+  photo?: string | null
+  photoCredit?: string | null
   /** true when the image was drawn by AI: the UI shows an "Illustration" badge */
   illustration?: boolean
   /** false when the story only has a shared library image (then the UI shows a typographic card) */

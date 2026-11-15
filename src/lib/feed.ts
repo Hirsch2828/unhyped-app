@@ -133,3 +133,20 @@ export const issueDate = (d = new Date()) =>
 
 // Evening runs from 19:00 until 06:00 on the reader's own clock.
 export const isEvening = (d = new Date()) => d.getHours() >= 19 || d.getHours() < 6
+
+export const ISSUE_SIZE = 5
+
+// Today's issue: the most important confirmed stories of the last day (two days if the day was quiet).
+// `quiet` is true when nothing new came in the last 48 hours; the issue then shows the latest stories instead.
+export function todayIssue(feed: Story[]): { issue: Story[]; quiet: boolean } {
+  const ranked = feed
+    .filter((s) => s.label !== 'rumor')
+    .sort((a, b) => b.importance - a.importance || b.mergedCount - a.mergedCount || a.hoursAgo - b.hoursAgo)
+  const day = ranked.filter((s) => s.hoursAgo <= 24)
+  const two = ranked.filter((s) => s.hoursAgo <= 48)
+  if (day.length >= 3) return { issue: day.slice(0, ISSUE_SIZE), quiet: false }
+  if (two.length >= 3) return { issue: two.slice(0, ISSUE_SIZE), quiet: false }
+  const latest = [...feed].filter((s) => s.label !== 'rumor').sort((a, b) => a.hoursAgo - b.hoursAgo).slice(0, 12)
+  latest.sort((a, b) => b.importance - a.importance || b.mergedCount - a.mergedCount)
+  return { issue: latest.slice(0, ISSUE_SIZE), quiet: true }
+}

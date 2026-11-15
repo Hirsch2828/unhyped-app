@@ -44,7 +44,7 @@ export interface Row {
   article_count: number
   last_article_at: string
   images: { path: string; tags: string[] | null } | null
-  articles: { url: string; title: string; sources: { name: string; tier: string } | null }[]
+  articles: { url: string; title: string; image_url?: string | null; sources: { name: string; tier: string } | null }[]
   hype_title?: string | null
   highlight?: string | null
   uncertain?: string[] | null
@@ -69,6 +69,9 @@ export function toStory(r: Row): Story {
     seen.add(name)
     sources.push({ name, kind: kindFor[a.sources?.tier ?? 'signal'], url: a.url, claim: a.title })
   }
+  // A real photo from the coverage: an official source's image first, then any source's.
+  const withPhoto = (r.articles ?? []).filter((a) => a.image_url && /^https:\/\//.test(a.image_url))
+  const pick = withPhoto.find((a) => a.sources?.tier === 'official') ?? withPhoto[0]
   return {
     id: r.id,
     topic: r.topic,
@@ -90,6 +93,8 @@ export function toStory(r: Row): Story {
     image: r.images?.path ?? fallbackImage[r.topic] ?? 'img/ai-hero.jpg',
     illustration: !!r.images?.tags?.includes('ai'),
     ownImage: !!r.images?.tags?.includes('generated'),
+    photo: pick?.image_url ?? null,
+    photoCredit: pick ? (pick.sources?.name ?? 'Source') : null,
     hypeTitle: r.hype_title ?? null,
     highlight: r.highlight && r.title.includes(r.highlight) ? r.highlight : null,
     uncertain: r.uncertain ?? [],
@@ -103,7 +108,7 @@ export async function loadLive() {
     const since = new Date(Date.now() - 7 * 24 * 3600_000).toISOString()
     const q = new URLSearchParams({
       select:
-        'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,sources(name,tier)),hype_title,highlight,uncertain,source_notes,claims',
+        'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,image_url,sources(name,tier)),hype_title,highlight,uncertain,source_notes,claims',
       status: 'eq.published',
       last_article_at: `gte.${since}`,
       order: 'last_article_at.desc',

@@ -50,7 +50,7 @@ export default function Settings() {
         aria-live="polite"
         className={`pointer-events-none fixed inset-x-0 bottom-24 z-40 flex justify-center transition-all sm:bottom-8 ${toast ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'}`}
       >
-        <span className="t-meta inline-flex items-center gap-2 rounded-full bg-charcoal px-4 py-2.5 text-sand shadow-soft">
+        <span className="text-[14px] leading-snug inline-flex items-center gap-2 rounded-full bg-charcoal px-4 py-2.5 text-sand shadow-soft">
           <CheckIcon className="h-4 w-4" strokeWidth={2.5} /> Preferences saved
         </span>
       </div>
@@ -70,7 +70,7 @@ export default function Settings() {
                 <span className="flex flex-1 items-start justify-between gap-2">
                   <span>
                     <span className="block font-serif text-[24px] font-semibold leading-7">{topicInfo[t].name}</span>
-                    <span className="t-meta mt-1.5 block text-charcoal-400">{topicInfo[t].desc}</span>
+                    <span className="text-[14px] leading-snug mt-1.5 block text-charcoal-400">{topicInfo[t].desc}</span>
                   </span>
                   <Check on={on} />
                 </span>
@@ -86,7 +86,7 @@ export default function Settings() {
           <section key={t} className="mt-7">
             <div className="flex items-baseline justify-between gap-4">
               <h3 className="t-eyebrow text-charcoal-500">{topicInfo[t].name} areas</h3>
-              <button onClick={() => selectAll(t)} className="t-meta -my-3 min-h-[44px] text-forest hover:text-charcoal">
+              <button onClick={() => selectAll(t)} className="text-[14px] leading-snug -my-3 min-h-[44px] text-forest hover:text-charcoal">
                 {allOn ? 'Clear all' : 'Select all'}
               </button>
             </div>
@@ -124,7 +124,7 @@ export default function Settings() {
               >
                 <span className="flex-1">
                   <span className={`block font-medium ${on ? 'text-forest' : ''}`}>{depthInfo[d].name}</span>
-                  <span className="t-meta mt-0.5 block text-charcoal-400">{depthInfo[d].desc}</span>
+                  <span className="text-[14px] leading-snug mt-0.5 block text-charcoal-400">{depthInfo[d].desc}</span>
                 </span>
                 <Radio on={on} />
               </button>
@@ -147,7 +147,7 @@ export default function Settings() {
                 className={`press flex min-h-[64px] flex-col items-start justify-center border px-3 py-2 text-left ${on ? 'border-2 border-ink' : 'border-rule hover:border-ink'}`}
               >
                 <span className="text-[15px] font-semibold">{t.name}</span>
-                <span className="t-meta mt-0.5 text-ink-soft">{t.desc}</span>
+                <span className="text-[14px] leading-snug mt-0.5 text-ink-soft">{t.desc}</span>
               </button>
             )
           })}
@@ -176,7 +176,7 @@ export default function Settings() {
           <div className="flex min-h-[56px] items-center gap-4 border-t border-rule py-2">
             <span className="flex-1">
               <span className="block">Briefing reminder</span>
-              <span className="t-meta block text-charcoal-400">A nudge when your briefing is ready.</span>
+              <span className="text-[14px] leading-snug block text-charcoal-400">A nudge when your briefing is ready.</span>
             </span>
             <button
               role="switch"
@@ -196,11 +196,11 @@ export default function Settings() {
         <div className="mt-3">
           <div className="flex min-h-[52px] items-center gap-4">
             <span className="flex-1">Language</span>
-            <span className="t-meta text-charcoal-400">English</span>
+            <span className="text-[14px] leading-snug text-charcoal-400">English</span>
           </div>
           <div className="flex min-h-[52px] items-center gap-4 border-t border-rule">
             <span className="flex-1">Account</span>
-            <span className="t-meta text-charcoal-400">{prefs.email ?? 'No account yet'}</span>
+            <span className="text-[14px] leading-snug text-charcoal-400">{prefs.email ?? 'No account yet'}</span>
           </div>
           <button
             onClick={() => {

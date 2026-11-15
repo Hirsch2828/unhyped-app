@@ -5,7 +5,7 @@ import { briefItems, feedFor, issueNo } from '../lib/feed'
 import { useStories } from '../lib/stories'
 import { usePrefs } from '../lib/prefs'
 import type { Story } from '../data/types'
-import { CategoryBadge, CompactRow, Headline, Plate, TrustMark, plural } from '../components/ui'
+import { CategoryBadge, CompactRow, Headline, Photo, TrustMark, plural } from '../components/ui'
 import { LastPage } from './Home'
 import { statusLine } from './StoryPage'
 
@@ -136,7 +136,8 @@ function Cards({ items, total, onList }: { items: Story[]; total: number; onList
                 <span className="font-mono text-[34px] font-semibold leading-none tnum onum">{String(i + 1).padStart(2, '0')}</span>
                 <CategoryBadge story={s} />
               </div>
-              <h2 className="t-h1 mt-4 text-[30px] leading-[32px]">
+              <Photo story={s} className="mt-4 aspect-[16/9] max-h-[38vh] w-full" />
+              <h2 className="t-h1 mt-4 text-[30px] leading-[32px] sm:text-[38px] sm:leading-[40px]">
                 <Headline story={s} />
               </h2>
               <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -144,10 +145,10 @@ function Cards({ items, total, onList }: { items: Story[]; total: number; onList
                 <span className="t-meta text-ink-soft">{statusLine(s)}</span>
               </div>
               <div className="mt-5 border-l-[3px] border-ink pl-4">
-                <p className="t-eyebrow">Why it matters</p>
+                <p className="text-[14px] font-bold">Why it matters</p>
                 <p className="mt-1.5 text-[17px] font-medium leading-[25px]">{s.whyItMatters}</p>
               </div>
-              <Plate story={s} size="md" className="mt-5 min-h-[90px] w-full flex-1" />
+              <div className="flex-1" />
               <Link to={`/story/${s.id}`} className="press mt-4 flex min-h-[48px] items-center justify-between bg-ink px-4 text-paper">
                 <span className="t-eyebrow">Read more</span>
                 <ArrowRight className="h-4 w-4" />
@@ -157,7 +158,7 @@ function Cards({ items, total, onList }: { items: Story[]; total: number; onList
         ))}
         <section className="flex h-full w-full shrink-0 snap-start snap-always flex-col justify-center pb-6" aria-label="End of the issue">
           <div className="mx-auto w-full max-w-3xl">
-            <LastPage compact />
+            <div className="px-6 sm:px-8"><LastPage compact /></div>
             <div className="mx-6 mt-6 sm:mx-8">
               <Link to="/" className="press flex min-h-[48px] items-center justify-between border-2 border-ink px-4">
                 <span className="t-eyebrow">Back to the issue</span>

@@ -31,14 +31,14 @@ export default function Saved() {
     <ImageScope>
       <div className="fade-in mx-auto max-w-3xl px-6 pt-6 sm:px-8 sm:pt-10">
         <h1 className="t-display">Saved</h1>
-        <p className="t-meta mt-2 text-charcoal-400">
+        <p className="text-[14px] leading-snug mt-2 text-charcoal-400">
           {items.length ? `${plural(items.length, 'story', 'stories')} · kept on this device` : 'Stories you want to come back to'}
         </p>
         {items.length === 0 ? (
           <div className="mt-16 flex flex-col items-center text-center">
             <Bookmark className="h-10 w-10 text-olive" strokeWidth={1.25} />
             <p className="t-h2 mt-5">Nothing saved. That’s allowed.</p>
-            <p className="t-meta mt-2 max-w-[260px] text-charcoal-400">Tap the bookmark on any story and it waits for you here.</p>
+            <p className="text-[14px] leading-snug mt-2 max-w-[260px] text-charcoal-400">Tap the bookmark on any story and it waits for you here.</p>
             <Link to="/" className="press mt-6 inline-flex min-h-[44px] items-center gap-1.5 text-[15px] font-medium text-forest">
               Browse today’s stories <ArrowRight className="h-4 w-4" />
             </Link>
