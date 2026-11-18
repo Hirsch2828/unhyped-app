@@ -1,4 +1,4 @@
-export type Topic = 'ai' | 'tesla' | 'robotics' | 'chips' | 'energy' | 'markets'
+export type Topic = 'ai' | 'tesla' | 'nvidia' | 'robotics' | 'chips' | 'energy' | 'markets'
 export type Label = 'official' | 'report' | 'rumor'
 export type Depth = 'essentials' | 'balanced' | 'everything'
 
@@ -47,6 +47,23 @@ export interface Story {
   sourceNotes?: SourceNote[]
   /** checked facts, each with how many articles back it */
   claims?: { text: string; n: number }[]
+  /** Why it matters, split: for the company and for its stock (facts only) */
+  whyCompany?: string | null
+  whyStock?: string | null
+  /** dates and signals to watch next */
+  watchNext?: { when: string | null; what: string }[]
+  /** the strongest arguments each way, from the sources only */
+  bull?: { text: string; n: number }[]
+  bear?: { text: string; n: number }[]
+  /** Hype vs Reality: 100 = confirmed fact, 0 = pure hype; with a reason anyone can check */
+  hypeScore?: number | null
+  hypeReason?: string | null
+  /** the public company the story is about, for the price chart */
+  ticker?: string | null
+  /** the story turned out to be wrong; debunkNote says what really happened */
+  debunked?: boolean
+  debunkNote?: string | null
+  publishedAt?: string | null
 }
 
 export interface SourceNote {

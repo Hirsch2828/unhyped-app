@@ -5,6 +5,7 @@ import { usePrefs, type Snap } from '../lib/prefs'
 import { useStories } from '../lib/stories'
 import { siblingsOf, threadsOf, onePerThread } from '../lib/threads'
 import type { Story } from '../data/types'
+import { HypeTag } from '../components/StoryParts'
 import { CategoryBadge, CompactRow, Headline, MetaRow, Photo, StoryCard, TrustMark, hasPicture } from '../components/ui'
 
 // Changed since you read it: more sources, a new label or a new headline.
@@ -15,12 +16,12 @@ export default function Home() {
   const { prefs } = usePrefs()
   const { articles24h, stories } = useStories()
   const [params, setParams] = useSearchParams()
-  const chips = homeChips(prefs.topics, prefs.depth)
+  const chips = homeChips(prefs.topics, prefs.depth, prefs.own)
   const filter = chips.some((c) => c.id === params.get('f')) ? params.get('f')! : 'all'
   const onlyChanged = params.get('since') === '1'
   const pick = (id: string) => setParams(id === 'all' ? {} : { f: id }, { replace: true })
 
-  const feed = applyFilter(feedFor(prefs.topics, prefs.depth), filter)
+  const feed = applyFilter(feedFor(prefs.topics, prefs.depth, prefs.own), filter)
   const { issue, quiet } = todayIssue(feed)
   const [lead, ...also] = issue
   // Hide every story whose event is already in the issue; its other developments sit under it.
@@ -43,6 +44,11 @@ export default function Home() {
   const official = rest.filter((s) => s.label === 'official').slice(0, 4)
   const officialIds = new Set(official.map((s) => s.id))
   const list = rest.filter((s) => !officialIds.has(s.id)).slice(0, 10)
+
+  // Today in 30 seconds: three real things, and one claim that fell apart (or, failing that, one still unconfirmed).
+  const debunked = stories.filter((s) => s.debunked && prefs.topics.includes(s.topic)).sort((a, b) => a.hoursAgo - b.hoursAgo)
+  const real = issue.filter((s) => s.label !== 'rumor').slice(0, 3)
+  const doubt = debunked[0] ?? feed.filter((s) => s.label === 'rumor').sort((a, b) => a.hoursAgo - b.hoursAgo)[0]
 
   const intro = quiet
     ? 'Quiet day. Nothing new held up in the last 48 hours, so here are the latest stories.'
@@ -74,6 +80,8 @@ export default function Home() {
         </nav>
       </div>
 
+      {!onlyChanged && filter === 'all' && real.length > 0 && <ThirtySeconds real={real} doubt={doubt} />}
+
       {sinceList.length > 0 && (
         <button
           onClick={() => setParams(onlyChanged ? (filter === 'all' ? {} : { f: filter }) : { ...(filter === 'all' ? {} : { f: filter }), since: '1' }, { replace: true })}
@@ -99,7 +107,7 @@ export default function Home() {
         </section>
       ) : (
         <>
-          {lead ? <Lead story={lead} read={prefs.read.includes(lead.id)} more={siblingsOf(lead, stories)} /> : <p className="mt-10 text-[18px] text-ink-soft">No stories on this desk this week.</p>}
+          {lead ? <Lead story={lead} read={prefs.read.includes(lead.id)} more={siblingsOf(lead, stories)} /> : <p className="mt-10 text-[18px] text-ink-soft">{filter.startsWith('own:') ? `Not much on ${filter.slice(4)} this week. We’ll add stories as soon as our sources mention it.` : 'No stories on this desk this week.'}</p>}
 
           {also.length > 0 && (
             <section className="mt-12 sm:mt-14" aria-label="Also in today's issue">
@@ -142,6 +150,8 @@ export default function Home() {
                 </span>
               </Link>
 
+              {debunked.length > 0 && <Debunked list={debunked.slice(0, 4)} />}
+
               {official.length > 0 && (
                 <section>
                   <h2 className="t-section rule-strong pt-3">Straight from the source</h2>
@@ -170,6 +180,63 @@ export default function Home() {
   )
 }
 
+/* ---------- Today in 30 seconds ---------- */
+
+function ThirtySeconds({ real, doubt }: { real: Story[]; doubt?: Story }) {
+  return (
+    <section aria-labelledby="t30" className="mt-5 border-2 border-ink p-4 sm:p-5">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id="t30" className="text-[18px] font-bold tracking-[-0.01em] text-ink">Today in 30 seconds</h2>
+        <span className="t-meta text-ink-soft">{real.length} real{doubt ? ' · 1 not' : ''}</span>
+      </div>
+      <ol className="mt-2">
+        {real.map((s) => (
+          <li key={s.id}>
+            <Link to={`/story/${s.id}`} className="press group flex min-h-[44px] items-baseline gap-3 border-t border-rule py-2.5">
+              <span aria-hidden className="w-5 shrink-0 font-mono font-bold text-ink">✓</span>
+              <span className="min-w-0 flex-1 text-[16.5px] font-semibold leading-[23px] text-ink group-hover:underline">{s.title}</span>
+              <span className="sr-only">Real.</span>
+            </Link>
+          </li>
+        ))}
+        {doubt && (
+          <li>
+            <Link to={`/story/${doubt.id}`} className="press group flex min-h-[44px] items-baseline gap-3 border-t border-rule py-2.5">
+              <span aria-hidden className="w-5 shrink-0 font-mono font-bold text-ink">{doubt.debunked ? '✗' : '?'}</span>
+              <span className="min-w-0 flex-1 text-[16.5px] leading-[23px] text-ink">
+                <span className="t-tag mr-2 bg-ink px-1 text-paper">{doubt.debunked ? 'Debunked' : 'Not confirmed'}</span>
+                <span className={doubt.debunked ? 'text-ink-soft line-through' : 'group-hover:underline'}>{doubt.title}</span>
+                {doubt.debunked && doubt.debunkNote && <span className="mt-0.5 block text-[15px] text-ink">{doubt.debunkNote}</span>}
+              </span>
+            </Link>
+          </li>
+        )}
+      </ol>
+    </section>
+  )
+}
+
+/* ---------- Debunked: stories that turned out wrong stay, crossed out ---------- */
+
+function Debunked({ list }: { list: Story[] }) {
+  return (
+    <section>
+      <h2 className="t-section rule-strong pt-3">Debunked</h2>
+      <p className="mt-1 text-[15px] text-ink-soft">Claims that fell apart, and what really happened.</p>
+      <ul className="mt-2 border-b border-rule">
+        {list.map((s) => (
+          <li key={s.id}>
+            <Link to={`/story/${s.id}`} className="press group block border-t border-rule py-3.5">
+              <span className="block text-[16px] leading-[22px] text-ink-soft line-through">{s.title}</span>
+              <span className="mt-1 block text-[15.5px] font-semibold leading-[22px] text-ink group-hover:underline">{s.debunkNote || 'This turned out to be wrong.'}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 /* ---------- The lead story ---------- */
 
 function Lead({ story, read, more }: { story: Story; read: boolean; more: Story[] }) {
@@ -185,6 +252,7 @@ function Lead({ story, read, more }: { story: Story; read: boolean; more: Story[
           <div className="flex flex-wrap items-center gap-2.5">
             <TrustMark label={story.label} />
             <CategoryBadge story={story} className="!text-ink" />
+            <HypeTag story={story} />
           </div>
           <h1 className="mt-4 text-balance text-[38px] font-bold leading-[39px] tracking-[-0.04em] text-ink sm:text-[64px] sm:leading-[62px] lg:text-[72px] lg:leading-[70px]">
             <Link to={`/story/${story.id}`} className="hover:underline hover:decoration-[4px] hover:underline-offset-[8px]">
@@ -200,6 +268,7 @@ function Lead({ story, read, more }: { story: Story; read: boolean; more: Story[
         <div className="flex flex-wrap items-center gap-2.5">
           <TrustMark label={story.label} />
           <CategoryBadge story={story} className="!text-ink" />
+            <HypeTag story={story} />
         </div>
         <h1
           className={`text-balance font-bold tracking-[-0.035em] text-ink ${

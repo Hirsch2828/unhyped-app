@@ -1,7 +1,7 @@
 // Editor review queue (hidden page: #/editor). Only accounts with role = 'editor' can approve.
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Check, ExternalLink, LogOut, Pencil, RotateCcw, X } from 'lucide-react'
+import { ArrowLeft, Ban, Check, ExternalLink, LogOut, Pencil, RotateCcw, X } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { loadLive } from '../lib/stories'
@@ -21,11 +21,20 @@ interface QueueStory {
   takeaways: string[]
   article_count: number
   last_article_at: string
+  debunked: boolean | null
+  debunk_note: string | null
+  source_notes: { source: string; stance: string; note: string }[] | null
   articles: { url: string; title: string; sources: { name: string; tier: string } | null }[]
 }
 
+// Suggest "Debunked" when an official source differs from our summary.
+const officialDiffers = (s: QueueStory) => {
+  const official = new Set(s.articles.filter((a) => a.sources?.tier === 'official').map((a) => a.sources!.name))
+  return (s.source_notes ?? []).find((n) => n.stance === 'differs' && official.has(n.source)) ?? null
+}
+
 const SELECT =
-  'id,topic,label,importance,status,title,dek,why_it_matters,takeaways,article_count,last_article_at,articles(url,title,sources(name,tier))'
+  'id,topic,label,importance,status,title,dek,why_it_matters,takeaways,article_count,last_article_at,debunked,debunk_note,source_notes,articles(url,title,sources(name,tier))'
 
 export default function Editor() {
   const [session, setSession] = useState<Session | null>(null)
@@ -192,26 +201,69 @@ function Queue() {
 
       <section>
         <h2 className="font-serif text-2xl font-semibold">Recently published</h2>
+        <p className="mt-1 text-charcoal-500">Mark a story Debunked when it turns out wrong. It stays up, crossed out, with your note.</p>
         <ul className="mt-4 divide-y divide-sand-300/70 rounded-2xl border border-sand-300/70 bg-sand-50">
           {recent.map((s) => (
-            <li key={s.id} className="flex items-center gap-3 p-3 sm:p-4">
-              <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center gap-2 text-xs text-charcoal-400">
-                  <TopicPill topic={s.topic} /> <LabelTag label={s.label} /> · score {s.importance} · {s.article_count} articles
-                </span>
-                <span className="mt-1 block truncate font-medium">{s.title}</span>
-              </span>
-              <button
-                onClick={() => update(s.id, { status: 'pending_review' })}
-                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sand-300 px-3 py-1.5 text-xs text-charcoal-500 hover:text-charcoal"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> Unpublish
-              </button>
-            </li>
+            <RecentRow key={s.id} story={s} onUpdate={(patch) => update(s.id, patch)} />
           ))}
         </ul>
       </section>
     </div>
+  )
+}
+
+function RecentRow({ story: s, onUpdate }: { story: QueueStory; onUpdate: (patch: Record<string, unknown>) => void }) {
+  const [open, setOpen] = useState(false)
+  const [note, setNote] = useState(s.debunk_note ?? '')
+  const hint = officialDiffers(s)
+  return (
+    <li className="p-3 sm:p-4">
+      <div className="flex items-center gap-3">
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-2 text-xs text-charcoal-400">
+            <TopicPill topic={s.topic} /> <LabelTag label={s.label} /> · score {s.importance} · {s.article_count} articles
+            {s.debunked && <span className="rounded bg-ink px-1.5 py-0.5 font-semibold text-paper">Debunked</span>}
+            {!s.debunked && hint && <span className="rounded border border-ink px-1.5 py-0.5 font-semibold text-ink">Suggested: {hint.source} differs</span>}
+          </span>
+          <span className={`mt-1 block truncate font-medium ${s.debunked ? 'line-through' : ''}`}>{s.title}</span>
+        </span>
+        <button
+          onClick={() => (s.debunked ? onUpdate({ debunked: false, debunk_note: null }) : setOpen(!open))}
+          aria-expanded={s.debunked ? undefined : open}
+          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sand-300 px-3 py-1.5 text-xs text-charcoal-500 hover:text-charcoal"
+        >
+          <Ban className="h-3.5 w-3.5" /> {s.debunked ? 'Undo debunk' : 'Debunk'}
+        </button>
+        <button
+          onClick={() => onUpdate({ status: 'pending_review' })}
+          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sand-300 px-3 py-1.5 text-xs text-charcoal-500 hover:text-charcoal"
+        >
+          <RotateCcw className="h-3.5 w-3.5" /> Unpublish
+        </button>
+      </div>
+      {hint && !s.debunked && <p className="mt-1 text-xs text-charcoal-500">{hint.source}: {hint.note}</p>}
+      {open && !s.debunked && (
+        <form
+          className="mt-3 flex flex-col gap-2 sm:flex-row"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (note.trim()) onUpdate({ debunked: true, debunk_note: note.trim() })
+          }}
+        >
+          <label className="sr-only" htmlFor={`note-${s.id}`}>What really happened</label>
+          <input
+            id={`note-${s.id}`}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="What really happened, in one sentence"
+            maxLength={200}
+            className="min-w-0 flex-1 rounded-xl border border-sand-300 bg-white px-3 py-2 text-sm outline-none focus:border-forest"
+            autoFocus
+          />
+          <Button type="submit" disabled={!note.trim()}>Mark debunked</Button>
+        </form>
+      )}
+    </li>
   )
 }
 

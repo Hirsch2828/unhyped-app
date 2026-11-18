@@ -63,7 +63,7 @@ export default function How() {
     const labels = { official: 0, report: 0, rumor: 0 }
     for (const s of stories) labels[s.label]++
     const reviewed = stories.filter((s) => s.importance === 3).length
-    const { issue } = todayIssue(feedFor(prefs.topics, prefs.depth))
+    const { issue } = todayIssue(feedFor(prefs.topics, prefs.depth, prefs.own))
     return { day: day.length, week: stories.length, events: threads.size, labels, reviewed, issue: issue.length }
   }, [stories, prefs.topics, prefs.depth])
   const totalSources = tiers ? tiers.official + tiers.news + tiers.signal : null

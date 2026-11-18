@@ -5,9 +5,23 @@ import type { Depth, Story, Topic } from '../data/types'
 
 const minImportance: Record<Depth, number> = { essentials: 3, balanced: 2, everything: 1 }
 
-export function feedFor(topics: Topic[], depth: Depth): Story[] {
-  return getStories().filter((s) => topics.includes(s.topic) && s.importance >= minImportance[depth])
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** Does a story match one of your own topics? Whole words, over the title, dek and key points. */
+export function ownMatch(s: Story, kw: string) {
+  const k = kw.trim()
+  if (!k) return false
+  return new RegExp(`(^|[^\\w])${esc(k)}($|[^\\w])`, 'i').test(`${s.title} ${s.dek} ${s.takeaways.join(' ')} ${s.whatHappened}`)
 }
+
+// Your topics at your depth, plus every story that matches one of your own topics (whatever its desk).
+export function feedFor(topics: Topic[], depth: Depth, own: string[] = []): Story[] {
+  return getStories().filter(
+    (s) => !s.debunked && ((topics.includes(s.topic) && s.importance >= minImportance[depth]) || own.some((k) => ownMatch(s, k))),
+  )
+}
+
+/** Stories this week for one of your own topics. */
+export const ownStories = (kw: string) => getStories().filter((s) => !s.debunked && ownMatch(s, kw))
 
 const score = (s: Story) => s.importance * 100 - s.hoursAgo
 const newest = (a: Story, b: Story) => a.hoursAgo - b.hoursAgo
@@ -22,22 +36,24 @@ export interface HomeRow {
 // Home filter: 'all', a topic id ('ai', 'tesla') or an area id ('agents', 'fsd', ...).
 export function applyFilter(feed: Story[], filter: string) {
   if (!filter || filter === 'all') return feed
+  if (filter.startsWith('own:')) return feed.filter((s) => ownMatch(s, filter.slice(4)))
   if (filter in topicInfo) return feed.filter((s) => s.topic === filter)
   return feed.filter((s) => s.area === filter)
 }
 
 // Chips shown under the hero: All, each followed topic, then the areas that have stories this week.
-export function homeChips(topics: Topic[], depth: Depth) {
-  const feed = feedFor(topics, depth)
+export function homeChips(topics: Topic[], depth: Depth, own: string[] = []) {
+  const feed = feedFor(topics, depth, own)
   const chips: { id: string; name: string }[] = [{ id: 'all', name: 'All' }]
   for (const t of topics) chips.push({ id: t, name: topicInfo[t].name })
+  for (const k of own) chips.push({ id: `own:${k}`, name: k })
   for (const t of topics)
     for (const a of areas[t] ?? []) if (feed.some((s) => s.topic === t && s.area === a.id)) chips.push({ id: a.id, name: a.name })
   return chips
 }
 
-export function buildHome(topics: Topic[], depth: Depth, myAreas: string[], filter = 'all') {
-  const feed = applyFilter(feedFor(topics, depth), filter).sort((a, b) => score(b) - score(a))
+export function buildHome(topics: Topic[], depth: Depth, myAreas: string[], filter = 'all', own: string[] = []) {
+  const feed = applyFilter(feedFor(topics, depth, own), filter).sort((a, b) => score(b) - score(a))
   // Rotating hero: the most important fresh stories (last 48h when possible).
   const fresh = feed.filter((s) => s.hoursAgo <= 48 && s.label !== 'rumor')
   const heroes = (fresh.length >= 3 ? fresh : feed).slice(0, 5)
@@ -82,8 +98,8 @@ export function buildHome(topics: Topic[], depth: Depth, myAreas: string[], filt
         if (items.length >= 2)
           rows.push({
             id: `area-${a.id}`,
-            title: t === 'tesla' ? `Tesla: ${a.name}` : a.name,
-            subtitle: t === 'tesla' ? 'What happened. No buy or sell calls.' : a.desc,
+            title: t === 'ai' ? a.name : `${t === 'tesla' ? 'Tesla' : 'Chips'}: ${a.name}`,
+            subtitle: t === 'ai' ? a.desc : 'What happened. No buy or sell calls.',
             items,
           })
       }
@@ -114,8 +130,8 @@ export const today = () =>
   new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 
 // The daily brief: the 6 most important confirmed stories (shared by Home's banner and the Brief page).
-export function briefItems(topics: Topic[]) {
-  const ranked = feedFor(topics, 'balanced')
+export function briefItems(topics: Topic[], own: string[] = []) {
+  const ranked = feedFor(topics, 'balanced', own)
     .filter((s) => s.label !== 'rumor')
     .sort((a, b) => b.importance - a.importance || b.mergedCount - a.mergedCount || a.hoursAgo - b.hoursAgo)
   return onePerThread(ranked, getStories()).slice(0, 6)

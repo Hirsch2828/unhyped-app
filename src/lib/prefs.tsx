@@ -15,6 +15,8 @@ export const snapOf = (s: Story): Snap => ({ at: Date.now(), sources: s.mergedCo
 export interface Prefs {
   onboarded: boolean
   topics: Topic[]
+  /** your own topics: 1-3 word keywords matched over every story we collect */
+  own: string[]
   areas: string[]
   reminder: boolean
   depth: Depth
@@ -28,11 +30,21 @@ export interface Prefs {
   /** start of your previous visit (ms); stories newer than this count as new */
   prevVisit: number | null
   lastVisit: number | null
+  /** "Remind me" picks from What to watch next (kept on this device) */
+  reminders: Reminder[]
+}
+
+export interface Reminder {
+  story: string
+  title: string
+  when: string | null
+  what: string
 }
 
 const defaults: Prefs = {
   onboarded: false,
   topics: ['ai'],
+  own: [],
   areas: [],
   reminder: true,
   depth: 'balanced',
@@ -45,6 +57,7 @@ const defaults: Prefs = {
   snaps: {},
   prevVisit: null,
   lastVisit: null,
+  reminders: [],
 }
 
 const KEY = 'unhyped.prefs.v2'
@@ -54,8 +67,8 @@ function load(): Prefs {
     const raw = localStorage.getItem(KEY)
     if (!raw) return defaults
     const p = { ...defaults, ...JSON.parse(raw) } as Prefs
-    // Only launch topics (AI, Tesla) are live; drop older picks.
-    const topics = p.topics.filter((t) => t === 'ai' || t === 'tesla')
+    // Only live topics (AI, Tesla, Nvidia) are kept; drop older picks.
+    const topics = p.topics.filter((t) => t === 'ai' || t === 'tesla' || t === 'nvidia')
     // A new visit starts after 30 minutes away: remember when the last one began.
     const now = Date.now()
     const visit = !p.lastVisit || now - p.lastVisit > 30 * 60_000 ? { prevVisit: p.lastVisit, lastVisit: now } : { lastVisit: now }

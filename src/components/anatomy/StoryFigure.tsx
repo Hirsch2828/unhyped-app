@@ -20,18 +20,18 @@ export function useStoryFigure(story: Pick<Story, 'title' | 'dek' | 'highlight'>
   }, [story.title, story.dek, story.highlight]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export default function StoryFigure({ story, size = 'thumb', className = '', tag = false }: { story: Pick<Story, 'title' | 'dek' | 'highlight'>; size?: 'thumb' | 'full'; className?: string; tag?: boolean }) {
+export default function StoryFigure({ story, size = 'thumb', className = '', tag = false, auto = false }: { story: Pick<Story, 'title' | 'dek' | 'highlight'>; size?: 'thumb' | 'full'; className?: string; tag?: boolean; /** shown in an overlay: comes apart on its own */ auto?: boolean }) {
   const { pick, company, obj, scene, eventName } = useStoryFigure(story)
   const part = pick.kind === 'company' ? pick.part : null
   const label = company ? `${company.name}${part !== null ? `: ${company.parts[part].name}` : ''}, drawn as ${company.form === 'machine' ? 'a machine' : 'its product taken apart'}.` : `${eventName}, drawn as a small machine.`
   const fig = company ? (
     company.form === 'machine' ? (
-      <CompanyFigure company={company} lit={part} scroll />
+      <CompanyFigure company={company} lit={part} scroll={!auto} />
     ) : (
-      <ExplodedFigure obj={obj!} label={label} lit={part} />
+      <ExplodedFigure obj={obj!} label={label} lit={part} auto={auto} />
     )
   ) : (
-    <ExplodedFigure obj={scene} label={label} />
+    <ExplodedFigure obj={scene} label={label} auto={auto} />
   )
   if (size === 'thumb')
     return (
@@ -45,10 +45,10 @@ export default function StoryFigure({ story, size = 'thumb', className = '', tag
       <span className="t-meta absolute left-3 top-3 text-ink">Fig. {company ? company.name : eventName}</span>
       <div className="px-2 pt-10 sm:pb-12">{fig}</div>
       <figcaption className="flex flex-col items-start gap-2 px-3 pb-3 sm:absolute sm:inset-x-3 sm:bottom-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-0">
-        <span className="t-meta text-ink-soft">{company ? (part !== null ? company.parts[part].role : company.line) : 'Scroll to watch it happen.'}</span>
+        <span className="t-meta text-ink-soft">{company ? (part !== null ? company.parts[part].role : company.line) : auto ? 'What happened, as a small machine.' : 'Scroll to watch it happen.'}</span>
         {company && (
           <Link to={`/company/${company.id}${part !== null ? `?part=${company.parts[part].id}` : ''}`} className="press t-meta inline-flex min-h-[40px] shrink-0 items-center bg-lime px-3 font-semibold text-lime-ink">
-            Take {company.name} apart →
+            {auto ? `Open the ${company.name} page →` : `Take ${company.name} apart →`}
           </Link>
         )}
       </figcaption>
@@ -64,7 +64,7 @@ export default function StoryFigure({ story, size = 'thumb', className = '', tag
           <span className="t-tag text-ink-soft">What happened</span>
           <span className="mt-1 block text-[20px] font-extrabold leading-[24px] tracking-[-0.02em]">{eventName}</span>
         </figcaption>
-        <ExplodedFigure obj={scene} label={`${eventName}, drawn as a small machine.`} />
+        <ExplodedFigure obj={scene} label={`${eventName}, drawn as a small machine.`} auto={auto} />
       </figure>
     </div>
   )

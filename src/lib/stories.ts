@@ -72,17 +72,28 @@ export interface Row {
   uncertain?: string[] | null
   source_notes?: SourceNote[] | null
   claims?: { text: string; article_ids: string[] }[] | null
+  why_company?: string | null
+  why_stock?: string | null
+  watch_next?: { when: string | null; what: string }[] | null
+  bull?: { text: string; article_ids: string[] }[] | null
+  bear?: { text: string; article_ids: string[] }[] | null
+  hype_score?: number | null
+  hype_reason?: string | null
+  ticker?: string | null
+  debunked?: boolean | null
+  debunk_note?: string | null
+  published_at?: string | null
 }
 
 // Map backend area tags to the ids the UI uses.
 const areaId = (topic: string, area: string | null) =>
-  !area ? '' : topic === 'tesla' && area === 'energy' ? 'tesla-energy' : topic === 'tesla' && area === 'markets' ? 'earnings' : area
+  !area ? '' : topic === 'tesla' && area === 'energy' ? 'tesla-energy' : topic !== 'ai' && area === 'markets' ? 'earnings' : topic === 'nvidia' && area === 'chips' ? 'gpus' : area
 
-const fallbackImage: Record<string, string> = { ai: 'img/ai-hero.jpg', tesla: 'img/tesla-car.jpg' }
+const fallbackImage: Record<string, string> = { ai: 'img/ai-hero.jpg', tesla: 'img/tesla-car.jpg', nvidia: 'img/chip.jpg' }
 
 export function toStory(r: Row): Story {
   const hoursAgo = Math.max(0, Math.round((Date.now() - new Date(r.last_article_at).getTime()) / 3600_000))
-  const words = `${r.dek} ${r.what_happened} ${r.why_it_matters} ${r.takeaways.join(' ')}`.split(/\s+/).length
+  const words = `${r.dek} ${r.what_happened} ${r.why_it_matters} ${r.why_company ?? ''} ${r.why_stock ?? ''} ${r.takeaways.join(' ')}`.split(/\s+/).length
   const seen = new Set<string>()
   const sources: Source[] = []
   for (const a of r.articles ?? []) {
@@ -123,11 +134,22 @@ export function toStory(r: Row): Story {
     uncertain: r.uncertain ?? [],
     sourceNotes: r.source_notes ?? [],
     claims: (r.claims ?? []).map((c) => ({ text: c.text, n: c.article_ids?.length ?? 1 })),
+    whyCompany: r.why_company ?? null,
+    whyStock: r.why_stock ?? null,
+    watchNext: r.watch_next ?? [],
+    bull: (r.bull ?? []).map((c) => ({ text: c.text, n: c.article_ids?.length ?? 1 })),
+    bear: (r.bear ?? []).map((c) => ({ text: c.text, n: c.article_ids?.length ?? 1 })),
+    hypeScore: r.hype_score ?? null,
+    hypeReason: r.hype_reason ?? null,
+    ticker: r.ticker ?? null,
+    debunked: !!r.debunked,
+    debunkNote: r.debunk_note ?? null,
+    publishedAt: r.published_at ?? null,
   }
 }
 
 const SELECT =
-  'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,image_url,sources(name,tier)),hype_title,highlight,uncertain,source_notes,claims'
+  'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,image_url,sources(name,tier)),hype_title,highlight,uncertain,source_notes,claims,why_company,why_stock,watch_next,bull,bear,hype_score,hype_reason,ticker,debunked,debunk_note,published_at'
 
 export async function loadLive() {
   if (state.mode === 'error') set({ ...state, mode: 'loading' })

@@ -2,12 +2,13 @@
 // Runs on a schedule (every 30 min). Request budget per run: 1 grouping call + up to MAX_WRITES write calls.
 import { authorized, db, json } from '../_shared/db.ts'
 import { generateJSON, geminiModelInUse } from '../_shared/llm.ts'
-import { AREAS, CLUSTER_SYSTEM, ENRICH_SYSTEM, WRITE_SYSTEM, clusterPrompt, enrichPrompt, writePrompt } from '../_shared/prompts.ts'
-import { changeNote, clampImportance, copyProblems, labelFor, statusFor, type Label, type Tier } from '../_shared/rules.ts'
+import { AREAS, CLUSTER_SYSTEM, ENRICH_SYSTEM, TICKERS, WRITE_SYSTEM, clusterPrompt, enrichPrompt, writePrompt } from '../_shared/prompts.ts'
+import { changeNote, clampImportance, copyProblems, hypeScore, labelFor, statusFor, type Label, type Tier } from '../_shared/rules.ts'
 
 const MAX_ARTICLES = Number(Deno.env.get('MAX_ARTICLES') ?? 25)
 const MAX_WRITES = Number(Deno.env.get('MAX_WRITES') ?? 8)
 const MAX_ENRICH = Number(Deno.env.get('MAX_ENRICH') ?? 10)
+const MAX_UPGRADES = Number(Deno.env.get('MAX_UPGRADES') ?? 3)
 
 // Article ids belong in claims only: strip any "[a1]" / "(a1, a2)" markers from reader-facing text.
 const clean = (t: unknown) =>
@@ -21,6 +22,9 @@ interface Assignment { article: string; relevant: boolean; story: string | null;
 interface Written {
   title: string; dek: string; takeaways: string[]; why_it_matters: string; what_happened: string
   claims: { text: string; article_ids: string[] }[]; importance: number; area: string; market_reaction: string | null
+  why_company?: string | null; why_stock?: string | null; ticker?: string | null
+  watch_next?: { when?: string | null; what?: string }[]
+  bull?: { text?: string; article_ids?: string[] }[]; bear?: { text?: string; article_ids?: string[] }[]
 }
 
 Deno.serve(async (req) => {
@@ -108,13 +112,23 @@ Deno.serve(async (req) => {
   }
 
   // ---------- 2. (Re)write changed stories ----------
-  const { data: todo } = await sb
+  const { data: changed } = await sb
     .from('stories')
-    .select('id, topic, label, status, image_id')
+    .select('id, topic, label, status, image_id, published_at')
     .eq('needs_rewrite', true)
     .neq('status', 'rejected')
     .order('last_article_at', { ascending: false })
     .limit(MAX_WRITES)
+  // Spare writes upgrade this week's published stories to the fuller format (5h), newest first.
+  const spare = Math.min(MAX_UPGRADES, MAX_WRITES - (changed?.length ?? 0))
+  const { data: older } = spare > 0
+    ? await sb.from('stories').select('id, topic, label, status, image_id, published_at')
+      .eq('status', 'published').eq('format', 1).eq('needs_rewrite', false)
+      .gte('last_article_at', new Date(Date.now() - 7 * 24 * 3600_000).toISOString())
+      .order('importance', { ascending: false }).order('last_article_at', { ascending: false }).limit(spare)
+    : { data: [] }
+  const upgrades = new Set((older ?? []).map((s) => s.id))
+  const todo = [...(changed ?? []), ...(older ?? [])]
 
   for (const story of todo ?? []) {
     if (!timeLeft()) { log.push('stopping early: time budget used, the rest waits for the next run'); break }
@@ -163,6 +177,14 @@ Deno.serve(async (req) => {
         .filter((c) => c.text && c.article_ids.length)
       const importance = clampImportance(w.importance, label)
       const area = AREAS[story.topic].includes(w.area) ? w.area : null
+      // Bull and bear keep only arguments that cite a real article.
+      const side = (xs: Written['bull']) => (xs ?? [])
+        .map((x) => ({ text: clean(x.text), article_ids: (x.article_ids ?? []).map((a) => ids.get(a)).filter(Boolean) }))
+        .filter((x) => x.text && x.article_ids.length).slice(0, 2)
+      const ticker = TICKERS.includes(String(w.ticker ?? '').toUpperCase()) ? String(w.ticker).toUpperCase() : null
+      const watch = (w.watch_next ?? [])
+        .map((x) => ({ when: /^\d{4}-\d{2}-\d{2}$/.test(String(x.when ?? '')) ? x.when : null, what: clean(x.what) }))
+        .filter((x) => x.what).slice(0, 3)
       // A story already approved by the editor stays published when it gets new articles.
       const status = problems.length && story.status !== 'published' ? 'pending_review' : story.status === 'published' ? 'published' : statusFor(importance, label)
       if (problems.length) log.push(`held ${story.id} for review: ${problems.join(' | ')}`)
@@ -178,14 +200,22 @@ Deno.serve(async (req) => {
         takeaways: (w.takeaways ?? []).map(clean).filter(Boolean).slice(0, 4),
         why_it_matters: clean(w.why_it_matters),
         what_happened: clean(w.what_happened),
-        market_reaction: story.topic === 'tesla' ? clean(w.market_reaction) || 'No clear market move linked to this.' : null,
+        market_reaction: ticker ? clean(w.market_reaction) || 'No clear market move linked to this.' : null,
+        why_company: clean(w.why_company) || null,
+        why_stock: ticker ? clean(w.why_stock) || null : null,
+        watch_next: watch,
+        bull: side(w.bull),
+        bear: side(w.bear),
+        ticker,
+        format: 2,
         claims,
         change_note: changeNote(story.status === 'draft' ? null : (story.label as Label), label) ?? undefined,
         article_count: arts.length,
         image_id,
         needs_rewrite: false,
         enriched_at: null, // re-annotate with the new articles
-        published_at: status === 'published' ? new Date().toISOString() : null,
+        // An upgrade only rewrites the text: the story keeps its place in the feed.
+        published_at: status === 'published' ? (upgrades.has(story.id) && story.published_at ? story.published_at : new Date().toISOString()) : null,
         updated_at: new Date().toISOString(),
       }).eq('id', story.id)
       log.push(`wrote ${story.id} (${label}, ${importance}, ${status})`)
@@ -208,7 +238,7 @@ Deno.serve(async (req) => {
     if (150_000 - (Date.now() - started) < 40_000) { log.push('enrich: out of time, rest waits'); break }
     const { data: arts } = await sb
       .from('articles')
-      .select('title, sources(name)')
+      .select('title, sources(name, tier)')
       .eq('story_id', story.id)
       .order('published_at', { ascending: true })
       .limit(20)
@@ -228,11 +258,17 @@ Deno.serve(async (req) => {
         .map((n) => ({ a: byId.get(String(n.id)), stance: n.stance, note: clean(n.note).slice(0, 140) }))
         .filter((n) => n.a && ['agrees', 'adds', 'differs'].includes(n.stance) && !seen.has(n.a.source) && seen.add(n.a.source))
         .map((n) => ({ source: n.a!.source, stance: n.stance, note: n.note }))
+      const uncertain = (e.uncertain ?? []).map(clean).filter(Boolean).slice(0, 3)
+      // deno-lint-ignore no-explicit-any
+      const tiers = (arts ?? []).map((a: any) => (a.sources?.tier ?? 'signal') as Tier)
+      const meter = hypeScore({ tiers, sources: new Set(list.map((a) => a.source)).size, hypeHeadline: !!useHype, openQuestions: uncertain.length })
       await sb.from('stories').update({
+        hype_score: meter.score,
+        hype_reason: meter.reason,
         hype_title: useHype ? hype!.title : null,
         hype_source: useHype ? hype!.source : null,
         highlight: hl && story.title.includes(hl) ? hl : null,
-        uncertain: (e.uncertain ?? []).map(clean).filter(Boolean).slice(0, 3),
+        uncertain,
         source_notes: notes,
         enriched_at: new Date().toISOString(),
       }).eq('id', story.id)
