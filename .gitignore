@@ -8,3 +8,4 @@ supabase/.temp/
 .DS_Store
 *.log
 public/__fixture.json
+shots/

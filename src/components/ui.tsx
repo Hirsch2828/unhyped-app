@@ -1,3 +1,4 @@
+import { pickFigure } from '../lib/figure'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -192,7 +193,7 @@ export function Plate({ story, size = 'md', className = '' }: { story: Pick<Stor
 /** A real photo or the story's own illustration exists (otherwise only the typographic plate). */
 export const hasPicture = (s: Pick<Story, 'photo' | 'ownImage'>) => !!s.photo || !!s.ownImage
 
-type PhotoStory = Pick<Story, 'id' | 'image' | 'illustration' | 'title' | 'topic' | 'area' | 'ownImage' | 'label' | 'photo' | 'photoCredit'>
+type PhotoStory = Pick<Story, 'id' | 'image' | 'illustration' | 'title' | 'topic' | 'area' | 'ownImage' | 'comic' | 'label' | 'photo' | 'photoCredit'>
 
 // The story's picture, in one warm black-and-white treatment. Order: a real photo from the sources,
 // then the story's own AI illustration, then the typographic plate. `credit` shows who it comes from.
@@ -210,14 +211,15 @@ export function Photo({
   eager?: boolean
 }) {
   // Try the real photo, then the illustration, then fall back to the plate if both fail to load.
-  const options = [story.photo ? 'photo' : null, story.ownImage ? 'image' : null].filter(Boolean) as ('photo' | 'image')[]
+  // A story drawn in the comic style shows its drawing first; otherwise the real photo leads.
+  const options = (story.comic ? [story.ownImage ? 'image' : null, story.photo ? 'photo' : null] : [story.photo ? 'photo' : null, story.ownImage ? 'image' : null]).filter(Boolean) as ('photo' | 'image')[]
   const [failed, setFailed] = useState(0)
   const kind = options[failed]
   if (!kind) return <Plate story={story} size={size} className={className} />
   const real = kind === 'photo'
   const src = real ? story.photo! : story.image
   return (
-    <div className={`photo ${className}`}>
+    <div className={`photo ${!real && story.comic ? 'photo-comic' : ''} ${className}`}>
       <img
         src={src}
         alt=""
@@ -254,8 +256,10 @@ export function StoryImg({
 
 // Headline with the one phrase that carries the news under the lime highlighter.
 // Only one highlighter per screen (the lead, the story page, a brief card), so it keeps its meaning.
-export function Headline({ story, className = '', mark = false }: { story: Pick<Story, 'title' | 'highlight'>; className?: string; mark?: boolean }) {
-  const hl = mark ? story.highlight : null
+// The headline with its key word under the lime highlighter: the editor's phrase, or the product, company or number
+// the figure is about.
+export function Headline({ story, className = '', mark = true }: { story: Pick<Story, 'title' | 'highlight'> & { dek?: string }; className?: string; mark?: boolean }) {
+  const hl = mark ? pickFigure(story).word : null
   const i = hl ? story.title.indexOf(hl) : -1
   if (!hl || i < 0) return <span className={className}>{story.title}</span>
   return (
@@ -325,7 +329,7 @@ export function CompactRow({ story, lead, thumb = false }: { story: Story; lead?
       <span className="min-w-0 flex-1">
         <CategoryBadge story={story} />
         <span className={`mt-1 block text-[18px] font-semibold leading-[22px] tracking-[-0.015em] ${read ? 'text-ink-soft' : 'text-ink'} group-hover:underline group-hover:underline-offset-4 sm:text-[19px] sm:leading-[24px]`}>
-          <Headline story={story} />
+          <Headline story={story} mark={false} />
         </span>
         <span className="mt-2 block">
           <MetaRow story={story} read={read} />

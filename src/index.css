@@ -28,22 +28,26 @@
 
 html, body { background: rgb(var(--paper)); color: rgb(var(--ink)); }
 html { transition: background-color 400ms var(--ease), color 400ms var(--ease); }
-body { -webkit-font-smoothing: antialiased; font-family: "Space Grotesk", Heebo, system-ui, sans-serif; font-size: 16px; line-height: 25px; }
+body { -webkit-font-smoothing: antialiased; font-family: Archivo, Heebo, system-ui, sans-serif; font-size: 16px; line-height: 25px; }
 [dir='rtl'] body, [lang='he'] { font-family: Heebo, system-ui, sans-serif; letter-spacing: 0 !important; }
 
 @layer components {
-  /* Type scale: Space Grotesk, tight tracking. Mono for labels, time and numbers. */
-  .t-display { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 36px; line-height: 37px; font-weight: 700; letter-spacing: -0.035em; }
-  .t-h1 { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 28px; line-height: 30px; font-weight: 700; letter-spacing: -0.03em; }
-  .t-h2 { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 21px; line-height: 25px; font-weight: 700; letter-spacing: -0.02em; }
-  .t-card { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 19px; line-height: 23px; font-weight: 600; letter-spacing: -0.02em; }
+  /* Type scale ("Teardown" structure): Archivo black headlines, JetBrains Mono for labels, time and numbers. */
+  .t-display { font-family: Archivo, Heebo, sans-serif; font-size: 44px; line-height: 42px; font-weight: 900; letter-spacing: -0.035em; }
+  .t-h1 { font-family: Archivo, Heebo, sans-serif; font-size: 32px; line-height: 32px; font-weight: 900; letter-spacing: -0.03em; }
+  .t-h2 { font-family: Archivo, Heebo, sans-serif; font-size: 22px; line-height: 26px; font-weight: 800; letter-spacing: -0.02em; }
+  .t-card { font-family: Archivo, Heebo, sans-serif; font-size: 20px; line-height: 24px; font-weight: 800; letter-spacing: -0.02em; }
   .t-body { font-size: 16.5px; line-height: 25.5px; letter-spacing: -0.005em; }
-  .t-meta { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px; line-height: 17px; font-weight: 500; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
+  .t-meta { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; line-height: 17px; font-weight: 500; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
   /* Desk names, section labels and small buttons: plain sans, not mono (redesign 2026-11-15). */
-  .t-eyebrow { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 14px; line-height: 18px; font-weight: 600; letter-spacing: -0.005em; }
+  .t-eyebrow { font-family: Archivo, Heebo, sans-serif; font-size: 14px; line-height: 18px; font-weight: 600; letter-spacing: -0.005em; }
   /* Trust tags only: small mono capitals. */
-  .t-tag { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px; line-height: 14px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
-  .t-section { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 22px; line-height: 26px; font-weight: 700; letter-spacing: -0.02em; }
+  .t-tag { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; line-height: 14px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+  .t-section { font-family: Archivo, Heebo, sans-serif; font-size: 24px; line-height: 28px; font-weight: 900; letter-spacing: -0.025em; }
+  @media (min-width: 1024px) {
+    .t-display { font-size: 76px; line-height: 70px; }
+    .t-h1 { font-size: 48px; line-height: 46px; }
+  }
 
   /* The highlighter: lime behind dark ink, never lime text. */
   .mark { background: linear-gradient(transparent 12%, var(--lime) 12%, var(--lime) 92%, transparent 92%); color: #171815; padding: 0 2px; margin: 0 -2px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
@@ -73,6 +77,7 @@ body { -webkit-font-smoothing: antialiased; font-family: "Space Grotesk", Heebo,
 /* One treatment for every photo and illustration: warm black and white. */
 .photo { background: #171815; overflow: hidden; position: relative; }
 .photo img { display: block; width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) sepia(.22) contrast(1.06); transition: transform 600ms var(--ease); }
+.photo-comic img { filter: none; }
 a:hover .photo img { transform: scale(1.02); }
 
 /* Halftone field used by story plates */

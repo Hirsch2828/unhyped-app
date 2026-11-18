@@ -5,8 +5,10 @@ import './index.css'
 import App from './App'
 import { PrefsProvider } from './lib/prefs'
 import { loadLive } from './lib/stories'
+import { loadCompanyFacts } from './lib/companies'
 
 loadLive()
+loadCompanyFacts()
 
 // After an email sign-in link, return to the page that asked for it (e.g. the editor queue).
 const after = localStorage.getItem('unhyped.afterLogin')

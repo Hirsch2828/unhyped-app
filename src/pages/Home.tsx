@@ -56,8 +56,8 @@ export default function Home() {
         {articles24h !== null && !quiet ? (
           // The cover line: the noise we read, struck through, and what made the issue.
           <p className="text-[22px] font-bold leading-[28px] tracking-[-0.025em] text-ink sm:text-[28px] sm:leading-[34px]">
-            <s className="font-medium text-ink-soft decoration-2">{articles24h} articles</s> <span aria-hidden>→</span>{' '}
-            <span className="mark">{issue.length} stories</span> worth your time.{' '}
+            <s className="font-medium text-ink-soft decoration-2">{articles24h} articles</s>. Taken apart.{' '}
+            <span className="mark">{issue.length} stories</span> left.{' '}
             <Link to="/how" className="whitespace-nowrap text-[15px] font-semibold tracking-normal text-ink-soft underline decoration-1 underline-offset-[3px] hover:text-ink sm:text-[16px]">
               How we choose
             </Link>
@@ -152,7 +152,7 @@ export default function Home() {
                         <Link to={`/story/${s.id}`} className="press group flex flex-col gap-1.5 border-t border-rule py-3.5">
                           <CategoryBadge story={s} />
                           <span className="text-[17px] font-semibold leading-[22px] tracking-[-0.01em] group-hover:underline">
-                            <Headline story={s} />
+                            <Headline story={s} mark={false} />
                           </span>
                         </Link>
                       </li>

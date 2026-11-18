@@ -35,6 +35,8 @@ export interface Story {
   illustration?: boolean
   /** false when the story only has a shared library image (then the UI shows a typographic card) */
   ownImage?: boolean
+  /** the story's own drawing in the realistic comic style: it is the story's picture, shown in colour */
+  comic?: boolean
   /** a real source headline that oversold the story (shown struck through); null when all were calm */
   hypeTitle?: string | null
   /** phrase inside `title` that carries the news (the lime highlighter) */

@@ -14,10 +14,12 @@ const PER_RUN = 4 // each image costs ~0.2s CPU to shrink; stay well under the e
 const DAILY_CAP = 70 // the free quota (10,000 neurons) gave ~80 images on day one; keep a margin
 const MODEL = '@cf/black-forest-labs/flux-1-schnell'
 
+// Realistic comic style (Ori, 2026-11-18): real proportions and light, drawn like a graphic novel.
 const STYLE =
-  'Editorial illustration, calm and minimal, warm golden-hour light, muted palette of sand beige, deep forest green, ' +
-  'sage, olive and soft terracotta. Soft painterly texture, clean uncluttered composition, wide landscape framing. ' +
-  'No text, no letters, no numbers, no logos, no brand marks, no human faces, no recognizable people.'
+  'Realistic graphic-novel comic illustration: true-to-life proportions, perspective and lighting, bold clean black ink outlines, ' +
+  'cel-shaded colour with halftone dot shading, palette of warm cream paper, ink black, cool greys and one acid lime-green accent. ' +
+  'One clear subject, dramatic but calm composition, wide landscape framing. ' +
+  'No text, no letters, no numbers, no speech bubbles, no logos, no brand marks, no human faces, no recognizable people.'
 
 const SCENE_SYSTEM = `You write short visual scene descriptions for illustrations that go with tech news stories.
 Return JSON only: {"scenes":[{"id":"<id>","scene":"<description>"}]}.
@@ -25,6 +27,7 @@ Each scene is 15 to 30 words: concrete objects and a setting that symbolize the 
 Never name real people, companies, brands, products or places. Never ask for text, logos, screens with words, or faces.
 People may appear only as small distant silhouettes seen from behind.
 For car stories show a generic modern electric car without logos. For robot stories show a generic humanoid robot.
+For chip stories show a generic computer chip or server rack; for phone stories a generic smartphone. Pick one strong moment, like a frame from a comic.
 Vary the scenes; avoid cliches like glowing brains.`
 
 type Story = { id: string; title: string; dek: string | null; topic: string; area: string | null }
@@ -64,7 +67,8 @@ Deno.serve(async (req) => {
     return json({ ok: true, log })
   }
 
-  // Stories mode: newest important stories first, from the last 7 days, without a generated image yet.
+  // Stories mode: newest important stories first, from the last 7 days, without a comic-style image yet
+// (older painterly images are redrawn in the new style).
   const since = new Date(Date.now() - 7 * 24 * 3600_000).toISOString()
   const { data, error } = await sb
     .from('stories')
@@ -76,7 +80,7 @@ Deno.serve(async (req) => {
     .limit(200)
   if (error) return json({ error: error.message }, 500)
   // deno-lint-ignore no-explicit-any
-  const todo: Story[] = (data ?? []).filter((s: any) => !s.images?.tags?.includes('generated')).slice(0, Math.min(PER_RUN, left))
+  const todo: Story[] = (data ?? []).filter((s: any) => !s.images?.tags?.includes('comic')).slice(0, Math.min(PER_RUN, left))
   if (!todo.length) return json({ ok: true, log: ['nothing to draw'] })
 
   let scenes: Record<string, string>
@@ -88,10 +92,10 @@ Deno.serve(async (req) => {
 
   for (const s of todo) {
     try {
-      const url = await draw(account, token, scenes[s.id] ?? fallbackScene(s), `stories/${s.id}.jpg`)
+      const url = await draw(account, token, scenes[s.id] ?? fallbackScene(s), `stories/${s.id}-comic.jpg`)
       const { data: img, error: insErr } = await sb
         .from('images')
-        .insert({ path: url, topic: s.topic, tags: ['ai', 'generated', ...(s.area ? [s.area] : [])], alt: scenes[s.id] ?? null })
+        .insert({ path: url, topic: s.topic, tags: ['ai', 'generated', 'comic', ...(s.area ? [s.area] : [])], alt: scenes[s.id] ?? null })
         .select('id').single()
       if (insErr) throw new Error(insErr.message)
       await sb.from('stories').update({ image_id: img.id }).eq('id', s.id)

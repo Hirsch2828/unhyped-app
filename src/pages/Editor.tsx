@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 import { loadLive } from '../lib/stories'
 import type { Label, Topic } from '../data/types'
 import { Button, LabelTag, Logo, TopicPill } from '../components/ui'
+import CompaniesReview from './editor/CompaniesReview'
 
 interface QueueStory {
   id: string
@@ -30,6 +31,7 @@ export default function Editor() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
   const [isEditor, setIsEditor] = useState(false)
+  const [tab, setTab] = useState<'stories' | 'companies'>('stories')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -76,7 +78,21 @@ export default function Editor() {
             Signed in as <b>{session.user.email}</b>. This account is not an editor yet.
           </p>
         ) : (
-          <Queue />
+          <>
+            <nav className="mb-8 flex gap-2" aria-label="Editor sections">
+              {(['stories', 'companies'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  aria-current={tab === t ? 'page' : undefined}
+                  className={`rounded-xl px-4 py-2 text-sm font-semibold ${tab === t ? 'bg-ink text-paper' : 'text-charcoal-500 hover:text-charcoal'}`}
+                >
+                  {t === 'stories' ? 'Stories' : 'Companies'}
+                </button>
+              ))}
+            </nav>
+            {tab === 'stories' ? <Queue /> : <CompaniesReview />}
+          </>
         )}
       </main>
     </div>
