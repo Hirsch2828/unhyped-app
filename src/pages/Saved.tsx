@@ -34,7 +34,7 @@ export default function Saved() {
 
   return (
     <ImageScope>
-      <div className="fade-in mx-auto max-w-3xl px-6 pt-6 sm:px-8 sm:pt-10">
+      <div className="fade-in px-6 pt-6 sm:px-8 sm:pt-10">
         <h1 className="t-display">Saved</h1>
         <p className="text-[14px] leading-snug mt-2 text-charcoal-400">
           {items.length ? `${plural(items.length, 'story', 'stories')} · kept on this device` : 'Stories you want to come back to'}
@@ -49,7 +49,7 @@ export default function Saved() {
             </Link>
           </div>
         ) : (
-          <ul className="mt-6 border-b border-rule">
+          <ul className="mt-6 grid grid-cols-1 gap-x-12 border-b border-rule lg:grid-cols-2">
             {items.map((s) => (
               <li key={s.id}>
                 <Link to={`/story/${s.id}`} className="press group flex gap-4 border-t border-rule py-4">

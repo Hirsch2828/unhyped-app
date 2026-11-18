@@ -130,11 +130,16 @@ export const today = () =>
   new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 
 // The daily brief: the 6 most important confirmed stories (shared by Home's banner and the Brief page).
-export function briefItems(topics: Topic[], own: string[] = []) {
-  const ranked = feedFor(topics, 'balanced', own)
-    .filter((s) => s.label !== 'rumor')
-    .sort((a, b) => b.importance - a.importance || b.mergedCount - a.mergedCount || a.hoursAgo - b.hoursAgo)
-  return onePerThread(ranked, getStories()).slice(0, 6)
+// The 60-second scan: today's stories (or the last two days on a quiet day), most important first,
+// one per event, at most 9. Rumors stay in: their low score is the point.
+export function briefItems(topics: Topic[], own: string[] = [], depth: Depth = 'balanced', max = 9) {
+  const all = feedFor(topics, depth, own)
+  const today = all.filter((s) => s.hoursAgo <= 24)
+  const pool = today.length >= 4 ? today : all.filter((s) => s.hoursAgo <= 48)
+  const ranked = [...(pool.length ? pool : all)].sort(
+    (a, b) => b.importance - a.importance || b.mergedCount - a.mergedCount || a.hoursAgo - b.hoursAgo,
+  )
+  return onePerThread(ranked, getStories()).slice(0, max)
 }
 
 /* ---------- The daily issue ---------- */

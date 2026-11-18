@@ -94,12 +94,29 @@ export function LabelTag({ label, light = false }: { label: Label; light?: boole
 
 /** time · trust mark, in meta style */
 export function MetaRow({ story, light = false, explain = false, read = false }: { story: Story; light?: boolean; explain?: boolean; read?: boolean }) {
+  const { prefs } = usePrefs()
+  // New since your last visit: a small dot, nothing louder.
+  const fresh = !!prefs.prevVisit && Date.now() - story.hoursAgo * 3600_000 > prefs.prevVisit && !prefs.read.includes(story.id)
   return (
     <div className={`t-meta flex flex-wrap items-center gap-x-2 gap-y-1 ${light ? 'text-paper/85' : 'text-ink-soft'}`}>
+      {fresh && (
+        <span className="inline-flex items-center gap-1 font-semibold">
+          <span aria-hidden className={`inline-block h-2 w-2 rounded-full ${light ? 'bg-lime' : 'bg-ink'}`} />
+          New
+        </span>
+      )}
       <TrustMark label={story.label} light={light} explain={explain} />
       <span>{timeAgo(story.hoursAgo)}</span>
       <span aria-hidden>·</span>
       <span>{plural(story.sources.length || story.mergedCount, 'source')}</span>
+      {typeof story.hypeScore === 'number' && (
+        <>
+          <span aria-hidden>·</span>
+          <span title="Hype vs Reality: 100 = confirmed fact, 0 = pure hype">
+            Reality <b className={light ? 'text-paper' : 'text-ink'}>{story.hypeScore}</b>/100
+          </span>
+        </>
+      )}
       {read && (
         <>
           <span aria-hidden>·</span>

@@ -3,14 +3,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, ExternalLink, Share2 } from 'lucide-react'
 import { ensureStories, findStory, useStories } from '../lib/stories'
 import { usePrefs, type Snap } from '../lib/prefs'
-import { feedFor, timeAgo, todayIssue } from '../lib/feed'
+import { timeAgo } from '../lib/feed'
 import type { Story } from '../data/types'
 import PriceChart from '../components/PriceChart'
 import LiveQuote from '../components/LiveQuote'
-import { AnatomyButton, BullBear, HypeMeter, WatchNext, WhyItMatters } from '../components/StoryParts'
-import { CategoryBadge, CompactRow, Headline, Photo, SaveButton, TrustMark, plural } from '../components/ui'
+import { AnatomyButton, BullBear, HypeMeter, WatchNext, WhyItMatters, sideHead } from '../components/StoryParts'
+import { CategoryBadge, Headline, Photo, SaveButton, TrustMark, plural } from '../components/ui'
 import SignupSheet from '../components/SignupSheet'
-import { onePerThread, siblingsOf } from '../lib/threads'
 
 // One sentence that explains why the story carries its label (decided by rule, not by AI).
 export function statusLine(s: Story) {
@@ -27,7 +26,7 @@ export function statusLine(s: Story) {
 
 export default function StoryPage() {
   const { id = '' } = useParams()
-  const { stories, mode } = useStories()
+  const { mode } = useStories()
   const story = findStory(id)
   useEffect(() => {
     if (mode === 'live' && !story) ensureStories([id])
@@ -63,7 +62,7 @@ export default function StoryPage() {
   if (!story)
     return (
       <div className="p-8 text-center text-ink-soft">
-        This story isn’t here anymore. <Link to="/" className="text-ink underline">Back to today’s issue</Link>
+        This story isn’t here anymore. <Link to="/" className="text-ink underline">Back to today’s stories</Link>
       </div>
     )
 
@@ -84,22 +83,31 @@ export default function StoryPage() {
       /* user cancelled */
     }
   }
-  const { issue } = todayIssue(feedFor(prefs.topics, prefs.depth, prefs.own))
-  const at = issue.findIndex((s) => s.id === story.id)
-  const next = at >= 0 ? issue[at + 1] : undefined
-  // The same event's other developments first, then related stories (one per event).
-  const developing = siblingsOf(story, stories)
-  const devIds = new Set(developing.map((s) => s.id))
-  const others = stories.filter((s) => s.id !== story.id && !devIds.has(s.id) && prefs.topics.includes(s.topic))
-  const related = onePerThread(
-    [...others.filter((s) => s.area && s.area === story.area), ...others.filter((s) => s.topic === story.topic && s.area !== story.area)],
-    stories,
-  ).slice(0, 4)
   const hasPicture = !!story.photo || !!story.ownImage
   const delta = deltaOf(story, prevSnap)
   const paragraphs = story.whatHappened.split(/\n\s*\n/).filter(Boolean)
   const facts = story.claims?.length ? story.claims : story.takeaways.map((t) => ({ text: t, n: 0 }))
   const unclear = story.uncertain ?? []
+
+  const at0 = story.publishedAt ?? new Date(Date.now() - story.hoursAgo * 3600_000).toISOString()
+  const verdict = [
+    story.watchNext?.length ? <WatchNext key="watch" story={story} side /> : null,
+    story.bull?.length || story.bear?.length ? <BullBear key="bb" story={story} side /> : null,
+    story.ticker || story.marketReaction ? (
+      <section key="market">
+        <h2 className={sideHead(true)}>Market reaction</h2>
+        {story.marketReaction && <p className="mt-2 text-[16px] leading-[24px] text-ink">{story.marketReaction}</p>}
+        {story.ticker ? (
+          <div className="mt-3">
+            <PriceChart ticker={story.ticker} at={at0} />
+            <LiveQuote ticker={story.ticker} />
+          </div>
+        ) : (
+          <p className="t-meta mt-2 text-ink-soft">What happened, not advice. We never say buy or sell.</p>
+        )}
+      </section>
+    ) : null,
+  ].filter(Boolean)
 
   const deltaBox = delta.length > 0 && (
     <div className="border-2 border-ink p-4">
@@ -122,17 +130,16 @@ export default function StoryPage() {
   return (
     <article className="fade-in">
       {/* Top bar: back to the issue, place in the issue, share and save; a thin reading-progress line */}
-      <div className="sticky top-0 z-30 bg-paper">
-        <div className="flex h-14 items-center justify-between px-1 sm:px-6">
+      <div className="sticky top-0 z-30 bg-paper sm:px-8">
+        <div className="flex h-14 items-center justify-between px-1 sm:-mx-2.5 sm:px-0">
           <button
             onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))}
             className="press inline-flex min-h-[44px] items-center gap-2 px-2.5 text-[15px] font-semibold text-ink"
             aria-label="Back"
           >
             <ArrowLeft className="h-5 w-5" />
-            <span className="hidden sm:inline">Today’s issue</span>
+            <span className="hidden sm:inline">Today’s stories</span>
           </button>
-          {at >= 0 && <span className="t-meta text-ink-soft">Story {at + 1} of {issue.length}</span>}
           <div className="flex">
             <button onClick={share} className="press grid h-11 w-11 place-items-center text-ink" aria-label={copied ? 'Link copied' : 'Share this story'}>
               {copied ? <span className="t-eyebrow">Copied</span> : <Share2 className="h-[18px] w-[18px]" strokeWidth={1.75} />}
@@ -145,8 +152,8 @@ export default function StoryPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-start gap-x-14 gap-y-12 px-4 pt-6 sm:px-8 sm:pt-8">
-        <div className="min-w-0 max-w-[760px] flex-[999_1_560px]">
+      <div className="flex flex-col gap-x-16 gap-y-12 px-4 pt-6 sm:px-8 sm:pt-8 lg:flex-row lg:items-start">
+        <div className="min-w-0 max-w-[800px] lg:flex-[999_1_600px]">
           <div className="flex flex-wrap items-center gap-2.5">
             <TrustMark label={story.label} explain />
             <CategoryBadge story={story} className="!text-ink" />
@@ -204,6 +211,9 @@ export default function StoryPage() {
             ))}
           </ol>
 
+          {/* The verdict panel (watch next, bull vs bear, market): right column on wide screens, here on phones. */}
+          {verdict.length > 0 && <div className="mt-10 flex flex-col gap-10 lg:hidden">{verdict}</div>}
+
           <div className="mt-9">
             <WhyItMatters story={story} />
           </div>
@@ -220,24 +230,6 @@ export default function StoryPage() {
               </div>
             </>
           )}
-          <WatchNext story={story} />
-          <BullBear story={story} />
-
-          {(story.ticker || story.marketReaction) && (
-            <section>
-              <h2 className="t-section mt-10 sm:text-[26px] sm:leading-[30px]">Market reaction</h2>
-              {story.marketReaction && <p className="mt-3 text-[17px] leading-[27px] text-ink">{story.marketReaction}</p>}
-              {story.ticker ? (
-                <div className="mt-4">
-                  <PriceChart ticker={story.ticker} at={story.publishedAt ?? new Date(Date.now() - story.hoursAgo * 3600_000).toISOString()} />
-                  <LiveQuote ticker={story.ticker} />
-                </div>
-              ) : (
-                <p className="t-meta mt-2 text-ink-soft">What happened, not advice. We never say buy or sell.</p>
-              )}
-            </section>
-          )}
-
           {unclear.length > 0 && (
             <>
               <h2 className="t-section mt-10 sm:text-[26px] sm:leading-[30px]">Still unclear</h2>
@@ -253,63 +245,21 @@ export default function StoryPage() {
           )}
         </div>
 
-        <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-10 lg:sticky lg:top-24">
+        <div className="flex min-w-0 flex-col gap-10 lg:flex-[1_1_340px]">
           {deltaBox && <div className="hidden lg:block">{deltaBox}</div>}
+          {verdict.length > 0 && <div className="hidden flex-col gap-10 lg:flex">{verdict}</div>}
           <section>
             <h2 className="t-section rule-strong pt-3">Sources ({story.sources.length || story.mergedCount})</h2>
             <SourceTable story={story} />
           </section>
-          {developing.length > 0 && (
-            <section id="developing">
-              <h2 className="t-section rule-strong pt-3">Developing story</h2>
-              <p className="mt-1 text-[15px] text-ink-soft">{plural(developing.length, 'more update')} on the same event, newest first.</p>
-              <ol className="mt-2 border-b border-rule">
-                {developing.map((s) => (
-                  <li key={s.id}>
-                    <Link to={`/story/${s.id}`} className="press group flex min-h-[44px] items-baseline gap-3 border-t border-rule py-3">
-                      <span className="t-meta w-10 shrink-0 text-ink-soft">{timeAgo(s.hoursAgo).replace(' ago', '')}</span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[16px] font-semibold leading-[22px] text-ink group-hover:underline">{s.title}</span>
-                        <span className="mt-1.5 block">
-                          <TrustMark label={s.label} />
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          )}
-          {related.length > 0 && (
-            <section>
-              <h2 className="t-section rule-strong pt-3">Related</h2>
-              <div className="mt-1 border-b border-rule">
-                {related.map((s) => (
-                  <CompactRow key={s.id} story={s} thumb />
-                ))}
-              </div>
-            </section>
-          )}
         </div>
       </div>
 
       <div className="px-4 sm:px-8">
-        {next ? (
-          <Link to={`/story/${next.id}`} className="press group mt-14 flex min-h-[44px] items-center justify-between gap-4 border-t-2 border-ink pt-5">
-            <span className="min-w-0">
-              <span className="block text-[15px] text-ink-soft">Next in today’s issue · {at + 2} of {issue.length}</span>
-              <span className="mt-1 block text-[22px] font-bold leading-[26px] tracking-[-0.02em] group-hover:underline sm:text-[26px] sm:leading-[30px]">{next.title}</span>
-            </span>
-            <span className="grid h-11 w-11 shrink-0 place-items-center bg-lime text-lime-ink">
-              <ArrowRight className="h-5 w-5" />
-            </span>
-          </Link>
-        ) : (
-          <Link to="/" className="press group mt-14 flex min-h-[44px] items-center justify-between gap-4 border-t-2 border-ink pt-5">
-            <span className="text-[22px] font-bold tracking-[-0.02em] group-hover:underline">Back to today’s issue</span>
+        <Link to="/" className="press group mt-14 flex min-h-[44px] items-center justify-between gap-4 border-t-2 border-ink pt-5">
+            <span className="text-[22px] font-bold tracking-[-0.02em] group-hover:underline">Back to today’s stories</span>
             <ArrowRight className="h-5 w-5" />
           </Link>
-        )}
       </div>
 
       {sheet && <SignupSheet onClose={() => setSheet(false)} />}

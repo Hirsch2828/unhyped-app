@@ -42,7 +42,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="fade-in mx-auto max-w-3xl px-6 pt-6 sm:px-8 sm:pt-10">
+    <div className="fade-in px-6 pt-6 sm:px-8 sm:pt-10">
       <h1 className="t-display">Settings</h1>
 
       <div
@@ -54,6 +54,8 @@ export default function Settings() {
         </span>
       </div>
 
+      <div className="grid grid-cols-1 gap-x-16 lg:grid-cols-2">
+      <div>
       <section className="mt-8 border-t border-rule pt-6">
         <h2 className="t-eyebrow text-sage-ink">Topics</h2>
         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -114,8 +116,10 @@ export default function Settings() {
           </section>
         )
       })}
+      </div>
 
-      <section className="mt-10 border-t border-rule pt-6">
+      <div>
+      <section className="mt-10 border-t border-rule pt-6 lg:mt-8">
         <h2 className="t-eyebrow text-sage-ink">How much to show</h2>
         <div className="mt-3" role="radiogroup">
           {(Object.keys(depthInfo) as Depth[]).map((d) => {
@@ -220,6 +224,8 @@ export default function Settings() {
           </button>
         </div>
       </section>
+      </div>
+      </div>
     </div>
   )
 }

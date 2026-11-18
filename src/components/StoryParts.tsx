@@ -84,11 +84,14 @@ export function WhyItMatters({ story }: { story: Story }) {
   )
 }
 
+/** Section heading: the article style, or the sidebar style (a strong rule above). */
+export const sideHead = (side: boolean) => (side ? 't-section rule-strong pt-3' : 't-section mt-10 sm:text-[26px] sm:leading-[30px]')
+
 /* ---------- What to watch next ---------- */
 
 const watchDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
-export function WatchNext({ story }: { story: Story }) {
+export function WatchNext({ story, side = false }: { story: Story; side?: boolean }) {
   const { prefs, update } = usePrefs()
   const items = story.watchNext ?? []
   if (!items.length) return null
@@ -101,7 +104,7 @@ export function WatchNext({ story }: { story: Story }) {
     })
   return (
     <section>
-      <h2 className="t-section mt-10 sm:text-[26px] sm:leading-[30px]">What to watch next</h2>
+      <h2 className={sideHead(side)}>What to watch next</h2>
       <ul className="mt-3 border-b border-rule">
         {items.map((it) => {
           const on = isOn(it.what)
@@ -128,11 +131,11 @@ export function WatchNext({ story }: { story: Story }) {
 
 /* ---------- Bull vs Bear ---------- */
 
-export function BullBear({ story }: { story: Story }) {
+export function BullBear({ story, side = false }: { story: Story; side?: boolean }) {
   const bull = story.bull ?? []
   const bear = story.bear ?? []
   if (!bull.length && !bear.length) return null
-  const side = (title: string, icon: string, list: { text: string; n: number }[], empty: string) => (
+  const column = (title: string, icon: string, list: { text: string; n: number }[], empty: string) => (
     <div className="border-t-2 border-ink pt-3">
       <h3 className="text-[17px] font-bold text-ink">
         <span aria-hidden className="mr-1.5">{icon}</span>
@@ -154,11 +157,11 @@ export function BullBear({ story }: { story: Story }) {
   )
   return (
     <section>
-      <h2 className="t-section mt-10 sm:text-[26px] sm:leading-[30px]">Bull vs Bear</h2>
+      <h2 className={sideHead(side)}>Bull vs Bear</h2>
       <p className="mt-1 text-[15px] text-ink-soft">The strongest point each way, only from the sources. Not a forecast.</p>
-      <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
-        {side('The bull case', '🐂', bull, 'The sources make no case for good news.')}
-        {side('The bear case', '🐻', bear, 'The sources name no risk.')}
+      <div className={`mt-4 grid grid-cols-1 gap-6 ${side ? '' : 'sm:grid-cols-2'}`}>
+        {column('The bull case', '🐂', bull, 'The sources make no case for good news.')}
+        {column('The bear case', '🐻', bear, 'The sources name no risk.')}
       </div>
     </section>
   )
