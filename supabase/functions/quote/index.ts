@@ -2,7 +2,9 @@
 // Public and read-only (the browser calls it); only tickers on our list, cached for 4 minutes per instance.
 // Prices come from Yahoo's public chart API and are delayed about 15 minutes.
 
-const TICKERS = ['NVDA', 'TSLA', 'MSFT', 'GOOGL', 'AAPL', 'META', 'AMZN', 'AMD', 'TSM', 'INTC', 'FROG']
+import { ALL_TICKERS } from '../_shared/catalog.ts'
+
+const TICKERS = ALL_TICKERS
 const TTL = 4 * 60_000
 const cache = new Map<string, { at: number; body: string }>()
 

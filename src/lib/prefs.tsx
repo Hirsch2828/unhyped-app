@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Depth, Label, Story, Topic } from '../data/types'
+import { TOPIC_IDS } from '../../supabase/functions/_shared/catalog'
 
 export type Theme = 'auto' | 'light' | 'dark'
 /** What a story looked like when you last read it (for "Since you read this"). */
@@ -67,8 +68,8 @@ function load(): Prefs {
     const raw = localStorage.getItem(KEY)
     if (!raw) return defaults
     const p = { ...defaults, ...JSON.parse(raw) } as Prefs
-    // Only live topics (AI, Tesla, Nvidia) are kept; drop older picks.
-    const topics = p.topics.filter((t) => t === 'ai' || t === 'tesla' || t === 'nvidia')
+    // Only topics that are in the catalog are kept; drop older picks.
+    const topics = p.topics.filter((t) => TOPIC_IDS.includes(t))
     // A new visit starts after 30 minutes away: remember when the last one began.
     const now = Date.now()
     const visit = !p.lastVisit || now - p.lastVisit > 30 * 60_000 ? { prevVisit: p.lastVisit, lastVisit: now } : { lastVisit: now }

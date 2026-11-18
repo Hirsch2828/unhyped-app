@@ -1,6 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
-import { applyFilter, feedFor, homeChips, timeAgo, todayIssue } from '../lib/feed'
+import { applyFilter, feedFor, homeChips, isAbout, timeAgo, todayIssue } from '../lib/feed'
+import { topicInfo } from '../data/topics'
 import { usePrefs, type Snap } from '../lib/prefs'
 import { useStories } from '../lib/stories'
 import { siblingsOf, threadsOf, onePerThread } from '../lib/threads'
@@ -35,10 +36,15 @@ export default function Home() {
       .sort((a, b) => Number(b.hoursAgo <= 24) - Number(a.hoursAgo <= 24) || b.importance - a.importance || a.hoursAgo - b.hoursAgo),
     stories,
   )
-  const list = rest.slice(0, 12)
+  // Your topics: up to three stories each that are not already on the page, and an honest line when it's quiet.
+  const byTopic = filter === 'all' && prefs.topics.length > 1
+    ? prefs.topics.filter((t) => topicInfo[t]).map((t) => ({ t, items: rest.filter((s) => isAbout(s, t)).slice(0, 3) }))
+    : []
+  const inTopics = new Set(byTopic.flatMap((x) => x.items.map((s) => s.id)))
+  const list = rest.filter((s) => !inTopics.has(s.id)).slice(0, 12)
 
   // Today in 30 seconds: three real things, and one claim that fell apart (or, failing that, one still unconfirmed).
-  const debunked = stories.filter((s) => s.debunked && prefs.topics.includes(s.topic)).sort((a, b) => a.hoursAgo - b.hoursAgo)
+  const debunked = stories.filter((s) => s.debunked && prefs.topics.some((t) => isAbout(s, t))).sort((a, b) => a.hoursAgo - b.hoursAgo)
   const real = issue.filter((s) => s.label !== 'rumor').slice(0, 3)
   const doubt = debunked[0] ?? feed.filter((s) => s.label === 'rumor').sort((a, b) => a.hoursAgo - b.hoursAgo)[0]
 
@@ -51,7 +57,7 @@ export default function Home() {
           {quiet && <p className="mt-1 text-[15px] text-ink-soft">Quiet day. Here are the latest stories.</p>}
         </div>
         <nav aria-label="Filter by desk" className="no-scrollbar -mx-4 flex overflow-x-auto px-3 lg:mx-0 lg:flex-wrap lg:px-0">
-          {chips.slice(0, 6).map((c) => (
+          {chips.slice(0, 12).map((c) => (
             <button key={c.id} onClick={() => pick(c.id)} aria-pressed={filter === c.id} className="press flex h-11 shrink-0 items-center px-1">
               <span className={`flex h-8 items-center px-2.5 text-[14px] font-semibold ${filter === c.id ? 'bg-ink text-paper' : 'text-ink-soft hover:text-ink'}`}>{c.name}</span>
             </button>
@@ -74,6 +80,42 @@ export default function Home() {
               <div className="mt-1 grid grid-cols-1 gap-x-8 sm:mt-5 sm:grid-cols-2 sm:gap-y-10 lg:grid-cols-3 xl:grid-cols-4">
                 {also.map((s) => (
                   <StoryCard key={s.id} story={s} rowOnPhone />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {byTopic.length > 0 && (
+            <section className="mt-12 sm:mt-14" aria-labelledby="yt">
+              <h2 id="yt" className="t-section rule-strong pt-3">Your topics</h2>
+              <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-8 md:grid-cols-2 xl:grid-cols-3">
+                {byTopic.map(({ t, items }) => (
+                  <section key={t} aria-label={topicInfo[t].name}>
+                    <div className="flex items-baseline justify-between gap-3 border-t-2 border-ink pt-2.5">
+                      <h3 className="text-[17px] font-bold text-ink">{topicInfo[t].name}</h3>
+                      {items.length > 0 && (
+                        <button onClick={() => pick(t)} className="t-meta -my-3 min-h-[44px] px-1 text-ink-soft hover:text-ink">
+                          See all
+                        </button>
+                      )}
+                    </div>
+                    {items.length ? (
+                      <ul>
+                        {items.map((s) => (
+                          <li key={s.id}>
+                            <Link to={`/story/${s.id}`} className="press group block border-t border-rule py-3 first:border-0">
+                              <span className="block text-[16px] font-semibold leading-[22px] text-ink group-hover:underline">{s.title}</span>
+                              <span className="mt-1.5 block">
+                                <MetaRow story={s} />
+                              </span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="py-3 text-[15px] text-ink-soft">Quiet day for {topicInfo[t].name}.</p>
+                    )}
+                  </section>
                 ))}
               </div>
             </section>

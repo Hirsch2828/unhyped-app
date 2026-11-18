@@ -4,7 +4,7 @@ import { normalizeUrl, parseFeed } from '../_shared/rss.ts'
 
 const MAX_AGE_HOURS = 72
 // Keep one busy feed (e.g. Reddit) from flooding the queue: newest N items per source per run.
-const MAX_PER_SOURCE = 8
+const MAX_PER_SOURCE = 5
 // Switch a source off after this many failed runs in a row (12 runs = 3 hours).
 const MAX_FAILS = 12
 

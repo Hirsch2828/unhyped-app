@@ -129,11 +129,9 @@ export function MetaRow({ story, light = false, explain = false, read = false }:
 
 /* ---------- Categories ---------- */
 
-const topicIcon: Record<Topic, string> = {
-  ai: 'BrainCircuit', tesla: 'Car', nvidia: 'Cpu', robotics: 'Bot', chips: 'Cpu', energy: 'Zap', markets: 'TrendingUp',
-}
+const topicIcon: Record<string, string> = { ai: 'BrainCircuit', tesla: 'Car', nvidia: 'Cpu', chips: 'Cpu' }
 export function categoryOf(id: string): { name: string; icon: string } | null {
-  if (id in topicInfo) return { name: topicInfo[id as Topic].name, icon: topicIcon[id as Topic] }
+  if (id in topicInfo) return { name: topicInfo[id].name, icon: topicIcon[id] ?? 'Newspaper' }
   for (const list of Object.values(areas)) {
     const a = list.find((x) => x.id === id)
     if (a) return { name: a.name, icon: a.icon }
@@ -142,18 +140,19 @@ export function categoryOf(id: string): { name: string; icon: string } | null {
 }
 export function categoryName(story: Pick<Story, 'topic' | 'area'>) {
   const c = categoryOf(story.area) ?? categoryOf(story.topic)!
-  return story.topic !== 'ai' && story.area ? `${story.topic === 'tesla' ? 'Tesla' : 'Chips'} · ${c.name}` : c.name
+  return story.topic !== 'ai' && story.area ? `${topicInfo[story.topic]?.name ?? story.topic} · ${c.name}` : c.name
 }
 
 // Desk line in mono: "AI · POLICY", "TESLA · FSD & AUTONOMY". No icons in the new style.
 export function CategoryBadge({ story, className = '', light = false }: { story: Pick<Story, 'topic' | 'area'>; className?: string; light?: boolean }) {
   const c = categoryOf(story.area)
-  const desk = c && story.area ? `${topicInfo[story.topic].name} · ${c.name}` : topicInfo[story.topic].name
+  const t = topicInfo[story.topic]?.name ?? story.topic
+  const desk = c && story.area ? `${t} · ${c.name}` : t
   return <span className={`t-eyebrow inline-block ${light ? 'text-paper/85' : 'text-ink-soft'} ${className}`}>{desk}</span>
 }
 
 export function TopicPill({ topic }: { topic: Topic }) {
-  return <span className="t-eyebrow text-ink-soft">{topicInfo[topic].name}</span>
+  return <span className="t-eyebrow text-ink-soft">{topicInfo[topic]?.name ?? topic}</span>
 }
 
 /* ---------- Plates (no photography) ---------- */
@@ -170,7 +169,7 @@ export function ImageScope({ children }: { children: React.ReactNode }) {
 const areaGlyph: Record<string, string> = {
   policy: '§', business: '$', models: '∆', agents: '⇄', tools: '⌘', research: '∴', infrastructure: '▦',
   vehicles: '▭', fsd: '◎', optimus: '⊕', 'tesla-energy': 'ϟ', earnings: '±', markets: '±',
-  gpus: '▦', datacenter: '▤', supply: '⇆',
+  gpus: '▦', datacenter: '▤', supply: '⇆', products: '◇',
 }
 
 // One glyph taken from the story itself: a number from the headline when there is one,
@@ -186,7 +185,7 @@ export function glyphFor(story: Pick<Story, 'title' | 'label' | 'area' | 'topic'
   if (pct) return pct[0].replace('-', '−')
   const ver = story.title.match(/\b\d+\.\d+\b/)
   if (ver) return ver[0]
-  return areaGlyph[story.area] ?? (story.topic === 'tesla' ? 'T' : story.topic === 'nvidia' ? '▦' : '◇')
+  return areaGlyph[story.area] ?? (story.topic === 'tesla' ? 'T' : story.topic === 'nvidia' ? '▦' : topicInfo[story.topic]?.glyph ?? '◇')
 }
 
 // Generated plate: a halftone field and one glyph from the story's own world. Never decorative, never missing.
@@ -203,7 +202,7 @@ export function Plate({ story, size = 'md', className = '' }: { story: Pick<Stor
       >
         {g}
       </span>
-      {size !== 'sm' && <span className="t-eyebrow absolute left-3 top-2.5 text-ink-soft">{topicInfo[story.topic].name}</span>}
+      {size !== 'sm' && <span className="t-eyebrow absolute left-3 top-2.5 text-ink-soft">{topicInfo[story.topic]?.name ?? story.topic}</span>}
     </div>
   )
 }

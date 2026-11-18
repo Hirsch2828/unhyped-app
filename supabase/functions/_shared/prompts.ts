@@ -1,11 +1,14 @@
 // The two prompts the product depends on. Keep the three hard rules in WRITE_SYSTEM.
+import { ALL_TICKERS, CATALOG, topicById } from './catalog.ts'
 
-export const CLUSTER_SYSTEM = `You group news articles into stories for a calm news app about AI, Tesla, and Nvidia and the chip market.
+const TOPIC_LIST = CATALOG.map((t) => `${t.id} (${t.name})`).join(', ')
+
+export const CLUSTER_SYSTEM = `You group news articles into stories for a calm news app about business, markets and technology. It covers these topics: ${TOPIC_LIST}.
 A story = one real-world event (a launch, a filing, a study, a deal, a regulation, a rumor).
 Rules:
 - Assign an article to an existing story only if it is clearly about the SAME event, not just the same company.
 - Articles about the same new event share one new group key (g1, g2, ...).
-- Mark relevant=false for items that are not news about AI, Tesla, or Nvidia and chips: opinion pieces with no event, how-to guides, ads, deals/discounts, job posts, memes, off-topic posts.
+- Mark relevant=false for items that are not news about one of the topics: opinion pieces with no event, how-to guides, product reviews, ads, deals/discounts, job posts, memes, celebrity gossip, sports, off-topic posts.
 - Use only the ids you are given. Reply with JSON only.`
 
 export function clusterPrompt(
@@ -23,7 +26,7 @@ Return:
 Every article appears exactly once. If relevant=false, story and group are null. If story is set, group is null.`
 }
 
-export const WRITE_SYSTEM = `You write story cards for Unhyped, a calm news app ("AI news, minus the hype").
+export const WRITE_SYSTEM = `You write story cards for Unhyped, a calm news app about markets and tech ("the news, minus the hype").
 Voice: a smart, calm friend explaining what happened over coffee. Plain English, short sentences, numbers instead of adjectives. No exclamation marks, no superlatives, no emoji, no clickbait.
 
 Three hard rules:
@@ -47,8 +50,9 @@ export function writePrompt(
   areas: string[],
   articles: { id: string; source: string; tier: string; title: string; summary: string; published: string | null }[],
 ) {
-  return `Topic: ${topic}
+  return `Topic: ${topic} (${topicById.get(topic)?.name ?? topic})
 Allowed areas: ${areas.join(', ')}
+All topic ids: ${TOPIC_LIST}
 
 Articles:
 ${articles
@@ -71,20 +75,17 @@ Return:
   "claims": [{"text": "...", "article_ids": ["a1"]}],
   "importance": 1 | 2 | 3,
   "area": "one of the allowed areas",
+  "topics": ["1 to 3 topic ids from the list that this story is really about, the main one first"],
   "market_reaction": "..." or null
 }
 bull and bear: up to 2 each. watch_next: up to 3.
-Importance: 3 = everyone following ${topic === 'tesla' ? 'Tesla' : topic === 'nvidia' ? 'Nvidia and chips' : 'AI'} must know today (major launch from a leading company, major regulation, quarterly results). 2 = meaningful update. 1 = minor, early signal, or unconfirmed.`
+Importance: 3 = everyone following ${topicById.get(topic)?.name ?? topic} must know today (major launch from a leading company, major regulation, quarterly results). 2 = meaningful update. 1 = minor, early signal, or unconfirmed.`
 }
 
-export const AREAS: Record<string, string[]> = {
-  ai: ['agents', 'models', 'tools', 'research', 'business', 'policy', 'infrastructure'],
-  tesla: ['vehicles', 'fsd', 'optimus', 'energy', 'earnings', 'markets'],
-  nvidia: ['chips', 'datacenter', 'earnings', 'supply', 'policy', 'markets'],
-}
+export const AREAS: Record<string, string[]> = Object.fromEntries(CATALOG.map((t) => [t.id, t.areas]))
 
 // Public companies we draw a price chart for.
-export const TICKERS = ['NVDA', 'TSLA', 'MSFT', 'GOOGL', 'AAPL', 'META', 'AMZN', 'AMD', 'TSM', 'INTC', 'FROG']
+export const TICKERS = ALL_TICKERS
 
 // Second, light pass over a finished story: picks things the UI shows around the story.
 // It never writes new facts: the hype headline is chosen from the given titles, the highlight is copied from our title.

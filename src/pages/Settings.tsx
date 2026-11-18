@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Check as CheckIcon, RotateCcw } from 'lucide-react'
 import type { Depth, Topic } from '../data/types'
-import { allTopics, areas, depthInfo, topicInfo } from '../data/topics'
+import { SECTORS, allTopics, depthInfo, topicsOf, type SectorId } from '../data/topics'
 import { usePrefs, type Theme } from '../lib/prefs'
-import { Check } from '../components/ui'
 import OwnTopics from '../components/OwnTopics'
 
 const times = ['07:00', '08:00', '12:30', '18:00', '21:00']
@@ -33,12 +32,12 @@ export default function Settings() {
     const next = prefs.topics.includes(t) ? prefs.topics.filter((x) => x !== t) : [...prefs.topics, t]
     if (next.length) update({ topics: next })
   }
-  const toggleArea = (a: string) =>
-    update({ areas: prefs.areas.includes(a) ? prefs.areas.filter((x) => x !== a) : [...prefs.areas, a] })
-  const selectAll = (t: Topic) => {
-    const ids = areas[t].map((a) => a.id)
-    const all = ids.every((id) => prefs.areas.includes(id))
-    update({ areas: all ? prefs.areas.filter((x) => !ids.includes(x)) : [...new Set([...prefs.areas, ...ids])] })
+  // Whole sector on or off; at least one topic always stays.
+  const allOf = (id: SectorId) => {
+    const ids = topicsOf(id).map((t) => t.id)
+    const on = ids.every((t) => prefs.topics.includes(t))
+    const next = on ? prefs.topics.filter((t) => !ids.includes(t)) : [...new Set([...prefs.topics, ...ids])]
+    if (next.length) update({ topics: next })
   }
 
   return (
@@ -57,65 +56,50 @@ export default function Settings() {
       <div className="grid grid-cols-1 gap-x-16 lg:grid-cols-2">
       <div>
       <section className="mt-8 border-t border-rule pt-6">
-        <h2 className="t-eyebrow text-sage-ink">Topics</h2>
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {allTopics.map((t) => {
-            const on = prefs.topics.includes(t)
+        <h2 className="t-eyebrow text-ink-soft">Topics</h2>
+        <p className="mt-1 text-[14px] text-ink-soft">{prefs.topics.length} of {allTopics.length} picked. Tap to add or remove.</p>
+        <div className="mt-2">
+          {SECTORS.map((sec) => {
+            const list = topicsOf(sec.id)
+            const all = list.every((t) => prefs.topics.includes(t.id))
             return (
-              <button
-                key={t}
-                onClick={() => toggleTopic(t)}
-                aria-pressed={on}
-                className={`press flex h-full flex-col rounded-card p-4 text-left ${on ? 'ring-2 ring-forest' : 'ring-1 ring-charcoal/15 hover:ring-charcoal/30'}`}
-              >
-                <span className="flex flex-1 items-start justify-between gap-2">
-                  <span>
-                    <span className="block font-serif text-[24px] font-semibold leading-7">{topicInfo[t].name}</span>
-                    <span className="text-[14px] leading-snug mt-1.5 block text-charcoal-400">{topicInfo[t].desc}</span>
-                  </span>
-                  <Check on={on} />
-                </span>
-              </button>
+              <section key={sec.id} className="border-t border-rule py-3.5">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h3 className="text-[16px] font-bold text-ink">{sec.name}</h3>
+                  <button onClick={() => allOf(sec.id)} className="t-meta -my-3 min-h-[44px] px-1 text-ink-soft underline underline-offset-[3px] hover:text-ink">
+                    {all ? 'Clear' : 'All'}
+                  </button>
+                </div>
+                <ul className="mt-1 flex flex-wrap gap-2">
+                  {list.map((t) => {
+                    const on = prefs.topics.includes(t.id)
+                    return (
+                      <li key={t.id}>
+                        <button
+                          onClick={() => toggleTopic(t.id)}
+                          aria-pressed={on}
+                          title={t.desc}
+                          className={`press inline-flex min-h-[40px] items-center gap-1.5 border px-3 text-[14px] font-semibold ${on ? 'border-ink bg-ink text-paper' : 'border-ink/40 text-ink hover:border-ink'}`}
+                        >
+                          {on && <CheckIcon className="-ml-0.5 h-3.5 w-3.5" strokeWidth={2.75} />}
+                          {t.name}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
             )
           })}
         </div>
-        <div className="mt-5">
-          <h3 className="t-eyebrow text-charcoal-500">Your own topics</h3>
-          <p className="mt-1 text-[14px] text-charcoal-400">1 to 3 words, like “Bitcoin” or “Apple Vision”. We match them across every source we read.</p>
+        <div className="mt-5 border-t border-rule pt-5">
+          <h3 className="t-eyebrow text-ink-soft">Your own topics</h3>
+          <p className="mt-1 text-[14px] text-ink-soft">1 to 3 words, like “Bitcoin” or “Apple Vision”. We match them across every source we read.</p>
           <div className="mt-3 max-w-md">
             <OwnTopics own={prefs.own} onChange={(own) => update({ own })} />
           </div>
         </div>
       </section>
-
-      {prefs.topics.map((t) => {
-        const allOn = areas[t].every((a) => prefs.areas.includes(a.id))
-        return (
-          <section key={t} className="mt-7">
-            <div className="flex items-baseline justify-between gap-4">
-              <h3 className="t-eyebrow text-charcoal-500">{topicInfo[t].name} areas</h3>
-              <button onClick={() => selectAll(t)} className="text-[14px] leading-snug -my-3 min-h-[44px] text-forest hover:text-charcoal">
-                {allOn ? 'Clear all' : 'Select all'}
-              </button>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-x-2">
-              {areas[t].map((a) => {
-                const on = prefs.areas.includes(a.id)
-                return (
-                  <button key={a.id} onClick={() => toggleArea(a.id)} aria-pressed={on} className="press flex h-11 items-center">
-                    <span
-                      className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-4 text-[14px] font-medium ${on ? 'border-forest bg-forest text-sand' : 'border-charcoal/20 text-charcoal hover:border-charcoal/40'}`}
-                    >
-                      {on && <CheckIcon className="-ml-1 h-3.5 w-3.5" strokeWidth={2.75} />}
-                      {a.name}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </section>
-        )
-      })}
       </div>
 
       <div>

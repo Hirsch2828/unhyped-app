@@ -3,12 +3,18 @@
 import { authorized, db, json } from '../_shared/db.ts'
 import { generateJSON, geminiModelInUse } from '../_shared/llm.ts'
 import { AREAS, CLUSTER_SYSTEM, ENRICH_SYSTEM, TICKERS, WRITE_SYSTEM, clusterPrompt, enrichPrompt, writePrompt } from '../_shared/prompts.ts'
+import { TOPIC_IDS } from '../_shared/catalog.ts'
 import { changeNote, clampImportance, copyProblems, hypeScore, labelFor, statusFor, type Label, type Tier } from '../_shared/rules.ts'
 
-const MAX_ARTICLES = Number(Deno.env.get('MAX_ARTICLES') ?? 25)
+const MAX_ARTICLES = Number(Deno.env.get('MAX_ARTICLES') ?? 40)
 const MAX_WRITES = Number(Deno.env.get('MAX_WRITES') ?? 8)
 const MAX_ENRICH = Number(Deno.env.get('MAX_ENRICH') ?? 10)
 const MAX_UPGRADES = Number(Deno.env.get('MAX_UPGRADES') ?? 3)
+// Free-tier budget (5י): new stories a day per topic, and in total. Past the cap, an article that would
+// start a new story is set aside; articles that join a story we already have still count.
+const NEW_PER_TOPIC = Number(Deno.env.get('NEW_PER_TOPIC') ?? 4)
+const NEW_PER_TOPIC_BIG: Record<string, number> = { ai: 10, tesla: 5, nvidia: 5 }
+const NEW_PER_DAY = Number(Deno.env.get('NEW_PER_DAY') ?? 140)
 
 // Article ids belong in claims only: strip any "[a1]" / "(a1, a2)" markers from reader-facing text.
 const clean = (t: unknown) =>
@@ -25,6 +31,7 @@ interface Written {
   why_company?: string | null; why_stock?: string | null; ticker?: string | null
   watch_next?: { when?: string | null; what?: string }[]
   bull?: { text?: string; article_ids?: string[] }[]; bear?: { text?: string; article_ids?: string[] }[]
+  topics?: string[]
 }
 
 Deno.serve(async (req) => {
@@ -74,6 +81,13 @@ Deno.serve(async (req) => {
       })
 
       const newGroups = new Map<string, string>() // group key -> new story id
+      // Stories started today (UTC), per topic, for the daily caps.
+      const { data: today } = await sb.from('stories').select('topic')
+        .gte('first_seen_at', new Date().toISOString().slice(0, 10) + 'T00:00:00Z').limit(1000)
+      const opened = new Map<string, number>()
+      for (const r of today ?? []) opened.set(r.topic, (opened.get(r.topic) ?? 0) + 1)
+      let openedTotal = today?.length ?? 0
+      let capped = 0
       const now = new Date().toISOString()
       // Models sometimes wrap the list differently: accept a bare array or any array field.
       const list = (Array.isArray(out)
@@ -90,6 +104,12 @@ Deno.serve(async (req) => {
           else {
             const key = asg.group ?? `solo-${asg.article}`
             if (!newGroups.has(key)) {
+              const cap = NEW_PER_TOPIC_BIG[art.topic] ?? NEW_PER_TOPIC
+              if ((opened.get(art.topic) ?? 0) >= cap || openedTotal >= NEW_PER_DAY) {
+                capped++
+                await sb.from('articles').update({ story_id: null, processed_at: now }).eq('id', art.id)
+                continue
+              }
               const { data: s, error } = await sb
                 .from('stories')
                 .insert({ topic: art.topic, title: art.title, status: 'draft', needs_rewrite: true })
@@ -97,6 +117,8 @@ Deno.serve(async (req) => {
                 .single()
               if (error) { log.push(`create story failed: ${error.message}`); continue }
               newGroups.set(key, s.id)
+              opened.set(art.topic, (opened.get(art.topic) ?? 0) + 1)
+              openedTotal++
             }
             storyId = newGroups.get(key)!
           }
@@ -104,7 +126,7 @@ Deno.serve(async (req) => {
         }
         await sb.from('articles').update({ story_id: storyId, processed_at: now }).eq('id', art.id)
       }
-      log.push(`grouped ${matched}/${fresh.length} articles, ${newGroups.size} new stories`)
+      log.push(`grouped ${matched}/${fresh.length} articles, ${newGroups.size} new stories${capped ? `, ${capped} set aside (daily cap)` : ''}`)
       if (!matched) log.push(`unexpected grouping reply: ${JSON.stringify(out).slice(0, 400)}`)
     } catch (e) {
       log.push(`grouping failed: ${(e as Error).message}`)
@@ -150,7 +172,7 @@ Deno.serve(async (req) => {
     try {
       const prompt = writePrompt(
           story.topic,
-          AREAS[story.topic],
+          AREAS[story.topic] ?? [],
           arts.map((a, i) => ({
             id: `a${i + 1}`,
             // deno-lint-ignore no-explicit-any
@@ -176,7 +198,9 @@ Deno.serve(async (req) => {
         .map((c) => ({ text: c.text, article_ids: (c.article_ids ?? []).map((x) => ids.get(x)).filter(Boolean) }))
         .filter((c) => c.text && c.article_ids.length)
       const importance = clampImportance(w.importance, label)
-      const area = AREAS[story.topic].includes(w.area) ? w.area : null
+      const area = (AREAS[story.topic] ?? []).includes(w.area) ? w.area : null
+      // Every catalog topic the story is about: its own desk first, then up to two more the writer named.
+      const topics = [...new Set([story.topic, ...(w.topics ?? []).map(String).filter((t) => TOPIC_IDS.includes(t))])].slice(0, 3)
       // Bull and bear keep only arguments that cite a real article.
       const side = (xs: Written['bull']) => (xs ?? [])
         .map((x) => ({ text: clean(x.text), article_ids: (x.article_ids ?? []).map((a) => ids.get(a)).filter(Boolean) }))
@@ -207,6 +231,7 @@ Deno.serve(async (req) => {
         bull: side(w.bull),
         bear: side(w.bear),
         ticker,
+        topics,
         format: 2,
         claims,
         change_note: changeNote(story.status === 'draft' ? null : (story.label as Label), label) ?? undefined,

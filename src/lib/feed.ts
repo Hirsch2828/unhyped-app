@@ -13,10 +13,13 @@ export function ownMatch(s: Story, kw: string) {
   return new RegExp(`(^|[^\\w])${esc(k)}($|[^\\w])`, 'i').test(`${s.title} ${s.dek} ${s.takeaways.join(' ')} ${s.whatHappened}`)
 }
 
+/** Is the story about this catalog topic (its main topic or one of its other topics)? */
+export const isAbout = (s: Story, t: Topic) => s.topic === t || !!s.topics?.includes(t)
+
 // Your topics at your depth, plus every story that matches one of your own topics (whatever its desk).
 export function feedFor(topics: Topic[], depth: Depth, own: string[] = []): Story[] {
   return getStories().filter(
-    (s) => !s.debunked && ((topics.includes(s.topic) && s.importance >= minImportance[depth]) || own.some((k) => ownMatch(s, k))),
+    (s) => !s.debunked && ((topics.some((t) => isAbout(s, t)) && s.importance >= minImportance[depth]) || own.some((k) => ownMatch(s, k))),
   )
 }
 
@@ -37,7 +40,7 @@ export interface HomeRow {
 export function applyFilter(feed: Story[], filter: string) {
   if (!filter || filter === 'all') return feed
   if (filter.startsWith('own:')) return feed.filter((s) => ownMatch(s, filter.slice(4)))
-  if (filter in topicInfo) return feed.filter((s) => s.topic === filter)
+  if (filter in topicInfo) return feed.filter((s) => isAbout(s, filter))
   return feed.filter((s) => s.area === filter)
 }
 
@@ -45,10 +48,12 @@ export function applyFilter(feed: Story[], filter: string) {
 export function homeChips(topics: Topic[], depth: Depth, own: string[] = []) {
   const feed = feedFor(topics, depth, own)
   const chips: { id: string; name: string }[] = [{ id: 'all', name: 'All' }]
-  for (const t of topics) chips.push({ id: t, name: topicInfo[t].name })
+  for (const t of topics) if (topicInfo[t]) chips.push({ id: t, name: topicInfo[t].name })
   for (const k of own) chips.push({ id: `own:${k}`, name: k })
-  for (const t of topics)
-    for (const a of areas[t] ?? []) if (feed.some((s) => s.topic === t && s.area === a.id)) chips.push({ id: a.id, name: a.name })
+  // Area chips only when you follow a few topics; with many, the topic chips are enough.
+  if (topics.length <= 3)
+    for (const t of topics)
+      for (const a of areas[t] ?? []) if (feed.some((s) => s.topic === t && s.area === a.id) && !chips.some((c) => c.id === a.id)) chips.push({ id: a.id, name: a.name })
   return chips
 }
 
@@ -98,7 +103,7 @@ export function buildHome(topics: Topic[], depth: Depth, myAreas: string[], filt
         if (items.length >= 2)
           rows.push({
             id: `area-${a.id}`,
-            title: t === 'ai' ? a.name : `${t === 'tesla' ? 'Tesla' : 'Chips'}: ${a.name}`,
+            title: t === 'ai' ? a.name : `${topicInfo[t]?.name ?? t}: ${a.name}`,
             subtitle: t === 'ai' ? a.desc : 'What happened. No buy or sell calls.',
             items,
           })

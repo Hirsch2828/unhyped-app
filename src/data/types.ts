@@ -1,4 +1,5 @@
-export type Topic = 'ai' | 'tesla' | 'nvidia' | 'robotics' | 'chips' | 'energy' | 'markets'
+/** A topic id from the catalog (supabase/functions/_shared/catalog.ts), e.g. 'ai', 'tesla', 'oil' */
+export type Topic = string
 export type Label = 'official' | 'report' | 'rumor'
 export type Depth = 'essentials' | 'balanced' | 'everything'
 
@@ -12,6 +13,8 @@ export interface Source {
 export interface Story {
   id: string
   topic: Topic
+  /** every catalog topic the story is about (its main topic first) */
+  topics?: Topic[]
   area: string
   label: Label
   title: string

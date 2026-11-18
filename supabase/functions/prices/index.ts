@@ -2,7 +2,9 @@
 // Runs once a day after the US market closes. Facts only: the site never gives buy or sell advice.
 import { authorized, db, json } from '../_shared/db.ts'
 
-const TICKERS = ['NVDA', 'TSLA', 'MSFT', 'GOOGL', 'AAPL', 'META', 'AMZN', 'AMD', 'TSM', 'INTC', 'FROG']
+import { ALL_TICKERS } from '../_shared/catalog.ts'
+
+const TICKERS = ALL_TICKERS
 
 Deno.serve(async (req) => {
   if (!(await authorized(req))) return json({ error: 'unauthorized' }, 401)

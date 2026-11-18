@@ -4,6 +4,11 @@ import { stories as sampleStories } from '../data/stories'
 import type { Label, Source, SourceNote, Story, Topic } from '../data/types'
 
 import { SUPABASE_KEY, SUPABASE_URL } from './supabase'
+import { topicById } from '../../supabase/functions/_shared/catalog'
+
+// x-client-info tells the database this build knows the full topic catalog (5j). Older builds still
+// running in readers' browsers only get AI, Tesla and Nvidia stories, so they never meet a topic they can't draw.
+const API_HEADERS = { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}`, 'x-client-info': 'unhyped-web/5j' }
 
 type Mode = 'loading' | 'live' | 'sample' | 'error'
 // articles24h: how many articles we read in the last 24 hours (the "noise" on the issue cover).
@@ -30,7 +35,7 @@ export async function ensureStories(ids: string[]) {
   missing.forEach((id) => asked.add(id))
   try {
     const q = new URLSearchParams({ select: SELECT, status: 'eq.published', id: `in.(${missing.join(',')})` })
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/stories?${q}`, { headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}` } })
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/stories?${q}`, { headers: API_HEADERS })
     if (!res.ok) return
     for (const r of (await res.json()) as Row[]) older.set(r.id, toStory(r))
     set({ ...state })
@@ -54,6 +59,7 @@ const kindFor: Record<string, Source['kind']> = { official: 'Company', news: 'Ne
 export interface Row {
   id: string
   topic: Topic
+  topics?: string[] | null
   area: string | null
   label: Label
   importance: 1 | 2 | 3
@@ -89,7 +95,9 @@ export interface Row {
 const areaId = (topic: string, area: string | null) =>
   !area ? '' : topic === 'tesla' && area === 'energy' ? 'tesla-energy' : topic !== 'ai' && area === 'markets' ? 'earnings' : topic === 'nvidia' && area === 'chips' ? 'gpus' : area
 
-const fallbackImage: Record<string, string> = { ai: 'img/ai-hero.jpg', tesla: 'img/tesla-car.jpg', nvidia: 'img/chip.jpg' }
+const fallbackImage: Record<string, string> = { ai: 'img/ai-hero.jpg', tesla: 'img/tesla-car.jpg', nvidia: 'img/chip.jpg', chips: 'img/chip.jpg', datacenters: 'img/chip.jpg', defense: 'img/policy.jpg', evs: 'img/tesla-light.jpg' }
+// Until a topic has its own illustration library, a story without an image borrows one that fits its sector.
+const sectorImage: Record<string, string> = { tech: 'img/robot-arm.jpg', comms: 'img/city.jpg', discretionary: 'img/city.jpg', staples: 'img/markets.jpg', energy: 'img/energy.jpg', utilities: 'img/energy.jpg', materials: 'img/energy.jpg', financials: 'img/markets.jpg', health: 'img/policy.jpg', industrials: 'img/policy.jpg', realestate: 'img/city.jpg' }
 
 export function toStory(r: Row): Story {
   const hoursAgo = Math.max(0, Math.round((Date.now() - new Date(r.last_article_at).getTime()) / 3600_000))
@@ -108,6 +116,7 @@ export function toStory(r: Row): Story {
   return {
     id: r.id,
     topic: r.topic,
+    topics: [...new Set([r.topic, ...(r.topics ?? [])])],
     area: areaId(r.topic, r.area),
     label: r.label,
     title: r.title,
@@ -123,7 +132,7 @@ export function toStory(r: Row): Story {
     importance: r.importance,
     trending: r.article_count * 10 + r.importance * 5 - hoursAgo,
     readMinutes: Math.max(1, Math.round(words / 200)),
-    image: r.images?.path ?? fallbackImage[r.topic] ?? 'img/ai-hero.jpg',
+    image: r.images?.path ?? fallbackImage[r.topic] ?? sectorImage[topicById.get(r.topic)?.sector ?? ''] ?? 'img/ai-hero.jpg',
     illustration: !!r.images?.tags?.includes('ai'),
     ownImage: !!r.images?.tags?.includes('generated'),
     comic: !!r.images?.tags?.includes('comic'),
@@ -149,7 +158,7 @@ export function toStory(r: Row): Story {
 }
 
 const SELECT =
-  'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,image_url,sources(name,tier)),hype_title,highlight,uncertain,source_notes,claims,why_company,why_stock,watch_next,bull,bear,hype_score,hype_reason,ticker,debunked,debunk_note,published_at'
+  'id,topic,topics,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,image_url,sources(name,tier)),hype_title,highlight,uncertain,source_notes,claims,why_company,why_stock,watch_next,bull,bear,hype_score,hype_reason,ticker,debunked,debunk_note,published_at'
 
 export async function loadLive() {
   if (state.mode === 'error') set({ ...state, mode: 'loading' })
@@ -173,7 +182,7 @@ export async function loadLive() {
       limit: '300',
     })
     const res = await fetch(`${SUPABASE_URL}/rest/v1/stories?${q}`, {
-      headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}` },
+      headers: API_HEADERS,
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const rows = (await res.json()) as Row[]
