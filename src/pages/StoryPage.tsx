@@ -6,6 +6,7 @@ import { usePrefs, type Snap } from '../lib/prefs'
 import { feedFor, timeAgo, todayIssue } from '../lib/feed'
 import type { Story } from '../data/types'
 import PriceChart from '../components/PriceChart'
+import LiveQuote from '../components/LiveQuote'
 import { AnatomyButton, BullBear, HypeMeter, WatchNext, WhyItMatters } from '../components/StoryParts'
 import { CategoryBadge, CompactRow, Headline, Photo, SaveButton, TrustMark, plural } from '../components/ui'
 import SignupSheet from '../components/SignupSheet'
@@ -229,6 +230,7 @@ export default function StoryPage() {
               {story.ticker ? (
                 <div className="mt-4">
                   <PriceChart ticker={story.ticker} at={story.publishedAt ?? new Date(Date.now() - story.hoursAgo * 3600_000).toISOString()} />
+                  <LiveQuote ticker={story.ticker} />
                 </div>
               ) : (
                 <p className="t-meta mt-2 text-ink-soft">What happened, not advice. We never say buy or sell.</p>
