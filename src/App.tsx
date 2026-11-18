@@ -14,6 +14,9 @@ import StoryPage from './pages/StoryPage'
 
 // Loaded only when opened, so the home page stays light.
 const How = lazy(() => import('./pages/How'))
+const Company = lazy(() => import('./pages/Company'))
+const Companies = lazy(() => import('./pages/Companies'))
+const Figures = lazy(() => import('./pages/dev/Figures'))
 
 export default function App() {
   const { prefs } = usePrefs()
@@ -34,9 +37,12 @@ export default function App() {
     <Routes>
       <Route path="/welcome" element={<Onboarding />} />
       <Route path="/editor" element={<Editor />} />
+      {import.meta.env.DEV && <Route path="/dev/figures" element={<Suspense fallback={null}><Figures /></Suspense>} />}
       {/* Open before onboarding too: the welcome screen links here. */}
       <Route element={<Shell />}>
         <Route path="/how" element={<Suspense fallback={null}><How /></Suspense>} />
+        <Route path="/company/:id" element={<Suspense fallback={null}><Company /></Suspense>} />
+        <Route path="/companies" element={<Suspense fallback={null}><Companies /></Suspense>} />
       </Route>
       <Route element={prefs.onboarded ? <Shell /> : <Navigate to="/welcome" replace />}>
         <Route path="/" element={<Home />} />

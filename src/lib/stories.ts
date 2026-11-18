@@ -16,6 +16,8 @@ const set = (next: typeof state) => {
 }
 
 export const getStories = () => state.stories
+/** Redraw everything that reads the store (used when company facts arrive). */
+export const refresh = () => set({ ...state })
 export const findStory = (id: string) => state.stories.find((s) => s.id === id) ?? older.get(id)
 
 // Stories older than the 7-day window (saved long ago, or opened from a shared link). Kept apart so they
@@ -113,6 +115,7 @@ export function toStory(r: Row): Story {
     image: r.images?.path ?? fallbackImage[r.topic] ?? 'img/ai-hero.jpg',
     illustration: !!r.images?.tags?.includes('ai'),
     ownImage: !!r.images?.tags?.includes('generated'),
+    comic: !!r.images?.tags?.includes('comic'),
     photo: pick?.image_url ?? null,
     photoCredit: pick ? (pick.sources?.name ?? 'Source') : null,
     hypeTitle: r.hype_title ?? null,

@@ -5,6 +5,7 @@ import { ensureStories, findStory, useStories } from '../lib/stories'
 import { usePrefs, type Snap } from '../lib/prefs'
 import { feedFor, timeAgo, todayIssue } from '../lib/feed'
 import type { Story } from '../data/types'
+import StoryFigure from '../components/anatomy/StoryFigure'
 import { CategoryBadge, CompactRow, Headline, Photo, SaveButton, TrustMark, plural } from '../components/ui'
 import SignupSheet from '../components/SignupSheet'
 import { onePerThread, siblingsOf } from '../lib/threads'
@@ -149,7 +150,7 @@ export default function StoryPage() {
             <CategoryBadge story={story} className="!text-ink" />
           </div>
           <h1 className="mt-4 text-[36px] font-bold leading-[37px] tracking-[-0.04em] text-ink sm:text-[56px] sm:leading-[56px]">
-            <Headline story={story} mark />
+            <Headline story={story} />
           </h1>
           <p className="mt-4 text-[19px] leading-[28px] text-ink sm:text-[22px] sm:leading-[32px]">{story.dek}</p>
           {story.hypeTitle && (
@@ -188,6 +189,9 @@ export default function StoryPage() {
               </li>
             ))}
           </ol>
+
+          {/* Inside the story: its company taken apart, or the scene of its event, scrubbed by the scroll. */}
+          <StoryFigure story={story} size="full" className="-mx-4 mt-9 sm:mx-0" />
 
           <div className="mt-9 bg-ink p-5 text-paper sm:p-7">
             <p className="text-[15px] font-bold text-lime">Why it matters</p>

@@ -6,7 +6,7 @@
   --anatomy-hi:#171815;--anatomy-mid:#6F716A;--anatomy-lo:#A3A49A;--anatomy-faint:#C9C6BA;--anatomy-lit:#171815;
   --anatomy-halo:#5f5d52;--anatomy-halo-opacity:.26;--anatomy-dot:#171815;
   --anatomy-red:#171815;--anatomy-green:#171815;--anatomy-blue:#171815;
-  --anatomy-weight:.75px;--anatomy-mono:"IBM Plex Mono",ui-monospace,monospace;
+  --anatomy-weight:.75px;--anatomy-mono:"JetBrains Mono",ui-monospace,monospace;
 }
 .dark .anatomy{
   --anatomy-paper:#171815;--anatomy-face:#20221D;--anatomy-top:#272923;
@@ -84,3 +84,9 @@
 .press-hits polygon{fill:transparent;cursor:pointer}
 @media (prefers-reduced-motion:reduce){.press-dim,.press g{transition:none}}
 .iso-svg.press{overflow:hidden}
+
+
+/* Number tags beside exploded layers */
+.iso-tag{font-family:var(--anatomy-mono);font-size:10px;font-weight:500;fill:var(--anatomy-mid);letter-spacing:.04em}
+.iso-tag-lit{fill:var(--anatomy-lit-top)}
+.iso-tag-lit+.iso-tag{fill:#171815}

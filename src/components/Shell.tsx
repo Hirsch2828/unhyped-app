@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
-import { Bookmark, Clock, Newspaper, Settings } from 'lucide-react'
+import { Bookmark, Boxes, Clock, Newspaper, Settings } from 'lucide-react'
 import { Logo } from './ui'
 import { feedFor, issueDate, issueNo, todayIssue } from '../lib/feed'
 import { usePrefs } from '../lib/prefs'
@@ -9,6 +9,7 @@ import { loadLive, useStories } from '../lib/stories'
 const tabs = [
   { to: '/', label: 'Today', icon: Newspaper },
   { to: '/brief', label: 'Briefing', icon: Clock },
+  { to: '/companies', label: 'Companies', icon: Boxes },
   { to: '/saved', label: 'Saved', icon: Bookmark },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
@@ -104,7 +105,7 @@ export default function Shell() {
                 <Logo className="sm:text-[28px]" />
               </NavLink>
               <nav aria-label="Sections" className="hidden items-center gap-1 sm:flex">
-                {tabs.slice(0, 3).map((t) => (
+                {tabs.slice(0, 4).map((t) => (
                   <NavLink
                     key={t.to}
                     to={t.to}
@@ -143,14 +144,14 @@ export default function Shell() {
       </main>
 
       <nav aria-label="Main" className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t-2 border-ink bg-paper sm:hidden">
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {tabs.map((t) => (
             <NavLink
               key={t.to}
               to={t.to}
               end
               className={({ isActive }) =>
-                `press flex min-h-[56px] flex-col items-center justify-center gap-1 text-[12px] ${isActive ? 'font-bold text-ink' : 'font-medium text-ink-soft'}`
+                `press flex min-h-[56px] flex-col items-center justify-center gap-1 text-[11px] ${isActive ? 'font-bold text-ink' : 'font-medium text-ink-soft'}`
               }
             >
               {({ isActive }) => (

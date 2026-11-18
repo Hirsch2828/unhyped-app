@@ -23,9 +23,9 @@ export default {
         rule: 'rgb(var(--ink) / 0.16)',
       },
       fontFamily: {
-        sans: ['"Space Grotesk"', 'Heebo', 'system-ui', 'sans-serif'],
-        serif: ['"Space Grotesk"', 'Heebo', 'system-ui', 'sans-serif'],
-        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+        sans: ['Archivo', 'Heebo', 'system-ui', 'sans-serif'],
+        serif: ['Archivo', 'Heebo', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
       },
       borderRadius: { none: '0', full: '0', sm: '0', DEFAULT: '0', md: '0', lg: '0', xl: '0', '2xl': '0', '3xl': '0', media: '0', card: '0' },
       boxShadow: { soft: 'none', card: 'none' },
