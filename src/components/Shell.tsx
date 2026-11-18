@@ -2,38 +2,15 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import { Bookmark, Boxes, Clock, Newspaper, Settings } from 'lucide-react'
 import { Logo } from './ui'
-import { feedFor, issueDate, issueNo, todayIssue } from '../lib/feed'
-import { usePrefs } from '../lib/prefs'
 import { loadLive, useStories } from '../lib/stories'
 
 const tabs = [
   { to: '/', label: 'Today', icon: Newspaper },
-  { to: '/brief', label: 'Briefing', icon: Clock },
+  { to: '/brief', label: '60s scan', icon: Clock },
   { to: '/companies', label: 'Companies', icon: Boxes },
   { to: '/saved', label: 'Saved', icon: Bookmark },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
-
-// "193 → 5": the articles we read in the last day, struck through, and the stories that made the issue.
-export function Stamp({ className = '' }: { className?: string }) {
-  const { prefs } = usePrefs()
-  const { articles24h } = useStories()
-  const { issue } = todayIssue(feedFor(prefs.topics, prefs.depth, prefs.own))
-  return (
-    <span
-      className={`t-meta inline-flex h-8 items-center gap-1.5 border-[1.5px] border-ink px-2 font-semibold text-ink ${className}`}
-      aria-label={articles24h !== null ? `${articles24h} articles read, ${issue.length} stories in the issue` : `${issue.length} stories in the issue`}
-    >
-      {articles24h !== null && (
-        <>
-          <s className="text-ink-soft">{articles24h}</s>
-          <span aria-hidden>→</span>
-        </>
-      )}
-      <span className="bg-lime px-1 text-lime-ink">{issue.length} stories</span>
-    </span>
-  )
-}
 
 // While the issue loads: a quiet skeleton in the shape of the page. If it can't load: say so, offer a retry.
 function FeedGate() {
@@ -58,7 +35,7 @@ function FeedGate() {
   if (mode === 'error')
     return (
       <div className="px-4 pt-14 sm:px-8">
-        <p className="t-meta uppercase text-ink-soft">Issue No. {issueNo()} · not delivered</p>
+        <p className="t-meta uppercase text-ink-soft">Today’s stories · not loaded</p>
         <h1 className="mt-3 max-w-2xl text-[34px] font-bold leading-[36px] tracking-[-0.035em] sm:text-[46px] sm:leading-[47px]">
           We couldn’t load today’s issue.
         </h1>
@@ -98,7 +75,7 @@ export default function Shell() {
     <div className="min-h-screen bg-paper text-ink">
       {/* Masthead: word mark, sections, issue number and the noise-to-signal stamp */}
       <header className={`bg-paper ${isStory || isBrief ? 'hidden sm:block' : ''}`}>
-        <div className="mx-auto max-w-7xl px-4 sm:px-8">
+        <div className="mx-auto max-w-[1440px] px-4 sm:px-8">
           <div className="flex h-[60px] items-center justify-between gap-4 border-b-2 border-ink sm:h-[72px]">
             <div className="flex items-center gap-10">
               <NavLink to="/" aria-label="Unhyped, today's issue" className="flex min-h-[44px] items-center">
@@ -120,10 +97,6 @@ export default function Shell() {
               </nav>
             </div>
             <div className="flex items-center gap-3 sm:gap-5">
-              <span className="t-meta hidden text-ink-soft md:inline">
-                No. {issueNo()} · {issueDate()}
-              </span>
-              {pathname !== '/' && <Stamp />}
               <NavLink
                 to="/settings"
                 aria-label="Settings"
@@ -139,7 +112,7 @@ export default function Shell() {
       <nav aria-label="Skip link"><a href="#main" onClick={(e) => { e.preventDefault(); document.getElementById('main')?.focus() }} className="sr-only z-50 bg-ink px-4 py-3 text-paper focus:not-sr-only focus:fixed focus:left-3 focus:top-3">
         Skip to content
       </a></nav>
-      <main id="main" tabIndex={-1} className="mx-auto max-w-7xl pb-28 outline-none sm:pb-16">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-[1440px] pb-28 outline-none sm:pb-16">
         {pathname === '/settings' ? <Outlet /> : <FeedGate />}
       </main>
 
