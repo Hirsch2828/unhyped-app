@@ -4,13 +4,14 @@ export const topicInfo: Record<Topic, { name: string; desc: string; image: strin
   ai: { name: 'AI', desc: 'Models, tools, research and real-world use', image: 'img/robot-portrait.jpg' },
   tesla: { name: 'Tesla', desc: 'Vehicles, autonomy, robots and energy', image: 'img/tesla-card.jpg' },
   robotics: { name: 'Robotics', desc: 'Humanoid robots and automation', image: 'img/robot-arm.jpg' },
+  nvidia: { name: 'Nvidia', desc: 'GPUs, TSMC and the whole chip race', image: 'img/chip.jpg' },
   chips: { name: 'Semiconductors', desc: 'Chips, hardware and infrastructure', image: 'img/chip.jpg' },
   energy: { name: 'Energy', desc: 'Renewables, storage and grid innovation', image: 'img/energy.jpg' },
   markets: { name: 'Markets', desc: 'What moved and why. Never buy or sell advice.', image: 'img/markets.jpg' },
 }
 
 // Launch topics only. The other topics stay defined for later.
-export const allTopics: Topic[] = ['ai', 'tesla']
+export const allTopics: Topic[] = ['ai', 'tesla', 'nvidia']
 
 export const areas: Record<Topic, { id: string; name: string; desc: string; icon: string }[]> = {
   ai: [
@@ -28,6 +29,13 @@ export const areas: Record<Topic, { id: string; name: string; desc: string; icon
     { id: 'optimus', name: 'Optimus', desc: 'Tesla’s humanoid robot', icon: 'Bot' },
     { id: 'tesla-energy', name: 'Energy', desc: 'Batteries and storage', icon: 'BatteryCharging' },
     { id: 'earnings', name: 'Earnings & markets', desc: 'Results and what moved. No advice.', icon: 'BarChart3' },
+  ],
+  nvidia: [
+    { id: 'gpus', name: 'GPUs & chips', desc: 'New GPUs and chip launches', icon: 'Cpu' },
+    { id: 'datacenter', name: 'Data centers', desc: 'AI servers, racks and cloud deals', icon: 'Database' },
+    { id: 'earnings', name: 'Earnings & markets', desc: 'Results and what moved. No advice.', icon: 'BarChart3' },
+    { id: 'supply', name: 'Supply chain', desc: 'TSMC, memory and manufacturing', icon: 'Factory' },
+    { id: 'policy', name: 'Policy', desc: 'Export rules and regulation', icon: 'Landmark' },
   ],
   robotics: [
     { id: 'humanoids', name: 'Humanoids', desc: 'General-purpose robots', icon: 'Bot' },

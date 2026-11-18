@@ -8,15 +8,17 @@ import { getStories, useStories } from '../lib/stories'
 import { feedFor } from '../lib/feed'
 import { onePerThread } from '../lib/threads'
 import { Button, Check, Icon, Logo, TrustMark, labelHint } from '../components/ui'
+import OwnTopics from '../components/OwnTopics'
 
 export default function Onboarding() {
   const { update } = usePrefs()
   const { articles24h, mode } = useStories()
   // How many stories each depth would put in today's issue, for the topics picked so far.
-  const storiesFor = (d: Depth) => onePerThread(feedFor(topics.length ? topics : ['ai'], d).filter((x) => x.hoursAgo <= 24), getStories()).length
+  const storiesFor = (d: Depth) => onePerThread(feedFor(topics.length ? topics : ['ai'], d, own).filter((x) => x.hoursAgo <= 24), getStories()).length
   const nav = useNavigate()
   const [step, setStep] = useState(1)
   const [topics, setTopics] = useState<Topic[]>(['ai'])
+  const [own, setOwn] = useState<string[]>([])
   const [depth, setDepth] = useState<Depth>('balanced')
 
   const toggleTopic = (t: Topic) => setTopics((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]))
@@ -25,6 +27,7 @@ export default function Onboarding() {
     update({
       onboarded: true,
       topics: topics.length ? topics : ['ai'],
+      own,
       areas: [],
       depth: skip ? 'balanced' : depth,
     })
@@ -56,7 +59,7 @@ export default function Onboarding() {
           {step === 1 && (
             <>
               <h1 className="t-display">What do you want to follow?</h1>
-              <p className="mt-2 text-charcoal-500">Pick one or both. You can change this later.</p>
+              <p className="mt-2 text-charcoal-500">Pick as many as you like, or add your own. You can change this later.</p>
               <div className="mt-6 grid grid-cols-2 gap-3">
                 {allTopics.map((t) => {
                   const on = topics.includes(t)
@@ -68,7 +71,7 @@ export default function Onboarding() {
                       className={`press relative aspect-[3/4] overflow-hidden border text-left ${on ? 'border-2 border-ink bg-ink text-paper' : 'border-ink text-ink'}`}
                     >
                       <span className={`halftone absolute inset-0 opacity-[0.14] [mask-image:linear-gradient(160deg,transparent_30%,#000_100%)] ${on ? 'invert' : ''}`} />
-                      <span aria-hidden className="absolute right-3 top-12 text-[96px] font-bold leading-none tracking-[-0.06em]">{t === 'ai' ? '◇' : 'T'}</span>
+                      <span aria-hidden className={`absolute right-3 font-bold leading-none tracking-[-0.06em] ${t === 'nvidia' ? 'top-12 text-[60px]' : 'top-12 text-[96px]'}`}>{t === 'ai' ? '◇' : t === 'tesla' ? 'T' : '▦'}</span>
                       <span className="absolute inset-x-0 bottom-0 p-4">
                         <span className="block text-[26px] font-bold leading-7 tracking-[-0.03em]">{topicInfo[t].name}</span>
                         <span className={`t-meta mt-1.5 block min-h-[48px] ${on ? 'text-paper/80' : 'text-ink-soft'}`}>{topicInfo[t].desc}</span>
@@ -79,6 +82,13 @@ export default function Onboarding() {
                     </button>
                   )
                 })}
+                <div className={`relative col-span-2 border p-4 ${own.length ? 'border-2 border-ink' : 'border-ink'}`}>
+                  <span className="block text-[26px] font-bold leading-7 tracking-[-0.03em]">Your own</span>
+                  <span className="t-meta mt-1.5 block text-ink-soft">1 to 3 words. We build it from every source we read.</span>
+                  <div className="mt-3">
+                    <OwnTopics own={own} onChange={setOwn} />
+                  </div>
+                </div>
               </div>
               <div className="mt-8 border-t border-rule pt-5">
                 <p className="t-eyebrow text-sage-ink">Every story is labeled</p>
@@ -142,7 +152,7 @@ export default function Onboarding() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
-          <Button className="flex-1" disabled={step === 1 && topics.length === 0} onClick={next}>
+          <Button className="flex-1" disabled={step === 1 && topics.length === 0 && own.length === 0} onClick={next}>
             {step === 2 ? 'Create my feed' : 'Continue'} <ArrowRight className="h-4 w-4" />
           </Button>
         </div>

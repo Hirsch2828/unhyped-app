@@ -18,7 +18,7 @@ const tabs = [
 export function Stamp({ className = '' }: { className?: string }) {
   const { prefs } = usePrefs()
   const { articles24h } = useStories()
-  const { issue } = todayIssue(feedFor(prefs.topics, prefs.depth))
+  const { issue } = todayIssue(feedFor(prefs.topics, prefs.depth, prefs.own))
   return (
     <span
       className={`t-meta inline-flex h-8 items-center gap-1.5 border-[1.5px] border-ink px-2 font-semibold text-ink ${className}`}

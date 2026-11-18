@@ -16,6 +16,7 @@ export default function ExplodedFigure({
   onSelect,
   still,
   lit = null,
+  auto = false,
   className = '',
 }: {
   obj: Exploded
@@ -26,6 +27,8 @@ export default function ExplodedFigure({
   still?: number
   /** a part drawn lit without dimming the others (the part a headline names) */
   lit?: number | null
+  /** come apart on its own once shown (in an overlay, where there is no page scroll to follow) */
+  auto?: boolean
   className?: string
 }) {
   const root = useRef<SVGSVGElement>(null)
@@ -54,15 +57,15 @@ export default function ExplodedFigure({
     }
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (still !== undefined || reduced) return set(still ?? 1)
-    let t = root.current ? scrollProgress(root.current) : 0
+    let t = auto ? 0 : root.current ? scrollProgress(root.current) : 0
     set(t)
     let raf = 0
     let visible = true
     const tick = () => {
       if (!visible || !root.current) return
-      const target = sel.current !== null && sel.current !== undefined ? 1 : scrollProgress(root.current)
+      const target = auto || (sel.current !== null && sel.current !== undefined) ? 1 : scrollProgress(root.current)
       // ease toward the target so the scrub feels like film, not a jump
-      t += (target - t) * 0.14
+      t += (target - t) * (auto ? 0.06 : 0.14)
       if (Math.abs(target - t) < 0.0005) t = target
       set(t)
       raf = requestAnimationFrame(tick)
@@ -77,7 +80,7 @@ export default function ExplodedFigure({
       cancelAnimationFrame(raf)
       io.disconnect()
     }
-  }, [obj, still])
+  }, [obj, still, auto])
 
   // Layer index → part index. A "follow" layer (like the near wheels) belongs to the part it moves with.
   const partOf: number[] = []

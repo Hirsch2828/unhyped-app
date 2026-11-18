@@ -10,7 +10,7 @@ export default function Category() {
   const [params] = useSearchParams()
   const { prefs } = usePrefs()
   const filter = params.get('f') ?? 'all'
-  const { rows } = buildHome(prefs.topics, prefs.depth, prefs.areas, filter)
+  const { rows } = buildHome(prefs.topics, prefs.depth, prefs.areas, filter, prefs.own)
   const row = rows.find((r) => r.id === id)
   const back = filter === 'all' ? '/' : `/?f=${filter}`
 

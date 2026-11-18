@@ -113,7 +113,7 @@ export function MetaRow({ story, light = false, explain = false, read = false }:
 /* ---------- Categories ---------- */
 
 const topicIcon: Record<Topic, string> = {
-  ai: 'BrainCircuit', tesla: 'Car', robotics: 'Bot', chips: 'Cpu', energy: 'Zap', markets: 'TrendingUp',
+  ai: 'BrainCircuit', tesla: 'Car', nvidia: 'Cpu', robotics: 'Bot', chips: 'Cpu', energy: 'Zap', markets: 'TrendingUp',
 }
 export function categoryOf(id: string): { name: string; icon: string } | null {
   if (id in topicInfo) return { name: topicInfo[id as Topic].name, icon: topicIcon[id as Topic] }
@@ -125,7 +125,7 @@ export function categoryOf(id: string): { name: string; icon: string } | null {
 }
 export function categoryName(story: Pick<Story, 'topic' | 'area'>) {
   const c = categoryOf(story.area) ?? categoryOf(story.topic)!
-  return story.topic === 'tesla' && story.area ? `Tesla · ${c.name}` : c.name
+  return story.topic !== 'ai' && story.area ? `${story.topic === 'tesla' ? 'Tesla' : 'Chips'} · ${c.name}` : c.name
 }
 
 // Desk line in mono: "AI · POLICY", "TESLA · FSD & AUTONOMY". No icons in the new style.
@@ -153,6 +153,7 @@ export function ImageScope({ children }: { children: React.ReactNode }) {
 const areaGlyph: Record<string, string> = {
   policy: '§', business: '$', models: '∆', agents: '⇄', tools: '⌘', research: '∴', infrastructure: '▦',
   vehicles: '▭', fsd: '◎', optimus: '⊕', 'tesla-energy': 'ϟ', earnings: '±', markets: '±',
+  gpus: '▦', datacenter: '▤', supply: '⇆',
 }
 
 // One glyph taken from the story itself: a number from the headline when there is one,
@@ -168,7 +169,7 @@ export function glyphFor(story: Pick<Story, 'title' | 'label' | 'area' | 'topic'
   if (pct) return pct[0].replace('-', '−')
   const ver = story.title.match(/\b\d+\.\d+\b/)
   if (ver) return ver[0]
-  return areaGlyph[story.area] ?? (story.topic === 'tesla' ? 'T' : '◇')
+  return areaGlyph[story.area] ?? (story.topic === 'tesla' ? 'T' : story.topic === 'nvidia' ? '▦' : '◇')
 }
 
 // Generated plate: a halftone field and one glyph from the story's own world. Never decorative, never missing.

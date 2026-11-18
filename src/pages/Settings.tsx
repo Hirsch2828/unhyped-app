@@ -5,6 +5,7 @@ import type { Depth, Topic } from '../data/types'
 import { allTopics, areas, depthInfo, topicInfo } from '../data/topics'
 import { usePrefs, type Theme } from '../lib/prefs'
 import { Check } from '../components/ui'
+import OwnTopics from '../components/OwnTopics'
 
 const times = ['07:00', '08:00', '12:30', '18:00', '21:00']
 const themes: { id: Theme; name: string; desc: string }[] = [
@@ -18,7 +19,7 @@ export default function Settings() {
   const nav = useNavigate()
   const [toast, setToast] = useState(false)
   // Show "Preferences saved" after a real change (saved automatically), not on first render.
-  const key = JSON.stringify([prefs.topics, prefs.areas, prefs.depth, prefs.briefTime, prefs.reminder])
+  const key = JSON.stringify([prefs.topics, prefs.own, prefs.areas, prefs.depth, prefs.briefTime, prefs.reminder])
   const initial = useRef(key)
   useEffect(() => {
     if (key === initial.current) return
@@ -75,6 +76,13 @@ export default function Settings() {
               </button>
             )
           })}
+        </div>
+        <div className="mt-5">
+          <h3 className="t-eyebrow text-charcoal-500">Your own topics</h3>
+          <p className="mt-1 text-[14px] text-charcoal-400">1 to 3 words, like “Bitcoin” or “Apple Vision”. We match them across every source we read.</p>
+          <div className="mt-3 max-w-md">
+            <OwnTopics own={prefs.own} onChange={(own) => update({ own })} />
+          </div>
         </div>
       </section>
 

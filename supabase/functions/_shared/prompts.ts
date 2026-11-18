@@ -1,11 +1,11 @@
 // The two prompts the product depends on. Keep the three hard rules in WRITE_SYSTEM.
 
-export const CLUSTER_SYSTEM = `You group news articles into stories for a calm news app about AI and Tesla.
+export const CLUSTER_SYSTEM = `You group news articles into stories for a calm news app about AI, Tesla, and Nvidia and the chip market.
 A story = one real-world event (a launch, a filing, a study, a deal, a regulation, a rumor).
 Rules:
 - Assign an article to an existing story only if it is clearly about the SAME event, not just the same company.
 - Articles about the same new event share one new group key (g1, g2, ...).
-- Mark relevant=false for items that are not news about AI or Tesla: opinion pieces with no event, how-to guides, ads, deals/discounts, job posts, memes, off-topic posts.
+- Mark relevant=false for items that are not news about AI, Tesla, or Nvidia and chips: opinion pieces with no event, how-to guides, ads, deals/discounts, job posts, memes, off-topic posts.
 - Use only the ids you are given. Reply with JSON only.`
 
 export function clusterPrompt(
@@ -29,11 +29,15 @@ Voice: a smart, calm friend explaining what happened over coffee. Plain English,
 Three hard rules:
 1. ONLY use facts that appear in the provided articles. Never add a fact, number, date, name or quote that is not in the input. Every claim must list at least one article id that supports it.
 2. Never raise certainty. If sources say "reportedly" or "according to people familiar", say so. If only social posts or forums support it, write plainly that no company or credible outlet has confirmed it.
-3. No predictions and no investment advice. Never say buy, sell, bullish, bearish, "will rise", price targets. For markets, state only what moved and by how much, if the articles say so. If the articles do not link a price move to the event, market_reaction is "No clear market move linked to this." For non-Tesla stories, market_reaction is null.
+3. No predictions and no investment advice. Never say buy, sell, bullish, bearish, "will rise", price targets. For markets, state only what moved and by how much, if the articles say so. If the articles do not link a price move to the event, market_reaction is "No clear market move linked to this." If the story is not about a public company, market_reaction is null.
+   "bull" and "bear" are the strongest arguments on each side THAT THE ARTICLES THEMSELVES MAKE (a number, a quote, an analyst's point, a risk the article names). Each one cites an article id. They describe the situation, never what anyone should do or where a price is going. If the articles give no argument for a side, return an empty list for it.
 
 Style rules (checked by code before publishing):
 - Title: sentence case (capitalise only the first word and names), under 80 characters, no hype words (revolutionary, game-changer, groundbreaking, unprecedented, massive, huge, shocking...).
+- why_company and why_stock: 2 to 3 sentences each, concrete, from the articles. why_stock says what the market is watching or how the stock moved, never what to do.
+- watch_next: only events or signals the articles mention (a date, an upcoming report, a decision, a launch). Empty list if they mention none.
 - why_it_matters: at most 2 sentences. Say who is affected and how, using something concrete from the articles (a price, a date, a number, a group of users). Never generic lines like "This highlights the growing importance of AI" or "could shift the direction of the industry".
+- Write to the reader, not about your input: never write "the articles", "the input" or "the provided text". If something is not known, leave it out (or, for the stock, say what investors are watching).
 
 Article ids go ONLY in "claims". Never put ids like [a1] in the title, dek, takeaways or other text.
 Reply with JSON only.`
@@ -57,19 +61,30 @@ Return:
   "dek": "one sentence",
   "takeaways": ["2 to 4 short points: only what changed"],
   "why_it_matters": "1-2 sentences: who is affected and how, with one concrete detail from the articles",
-  "what_happened": "2 paragraphs separated by a blank line, about 120-170 words in total: who did what, when, the numbers, and the background the articles give. Facts from the articles only. If the articles hold fewer facts, write less; never pad, guess or repeat the takeaways.",
+  "why_company": "2-3 sentences: what this changes for the company at the centre of the story",
+  "why_stock": "2-3 sentences: what it means for the company's stock as facts (how it moved, what investors are watching), or null if the company is not public",
+  "watch_next": [{"when": "YYYY-MM-DD or null", "what": "one sentence: the event or signal to watch and what it would show"}],
+  "bull": [{"text": "one sentence: an argument from the articles that this is good news", "article_ids": ["a1"]}],
+  "bear": [{"text": "one sentence: an argument or risk from the articles", "article_ids": ["a2"]}],
+  "ticker": "the US ticker of the public company the story is mainly about, one of ${TICKERS.join(', ')}, or null",
+  "what_happened": "3 to 4 paragraphs separated by blank lines, about 250-350 words in total: who did what and when, the numbers, what the company and others said, and the background the articles give. Facts from the articles only. If the articles hold fewer facts, write less; never pad, guess or repeat the takeaways.",
   "claims": [{"text": "...", "article_ids": ["a1"]}],
   "importance": 1 | 2 | 3,
   "area": "one of the allowed areas",
   "market_reaction": "..." or null
 }
-Importance: 3 = everyone following ${topic === 'tesla' ? 'Tesla' : 'AI'} must know today (major launch from a leading company, major regulation, quarterly results). 2 = meaningful update. 1 = minor, early signal, or unconfirmed.`
+bull and bear: up to 2 each. watch_next: up to 3.
+Importance: 3 = everyone following ${topic === 'tesla' ? 'Tesla' : topic === 'nvidia' ? 'Nvidia and chips' : 'AI'} must know today (major launch from a leading company, major regulation, quarterly results). 2 = meaningful update. 1 = minor, early signal, or unconfirmed.`
 }
 
 export const AREAS: Record<string, string[]> = {
   ai: ['agents', 'models', 'tools', 'research', 'business', 'policy', 'infrastructure'],
   tesla: ['vehicles', 'fsd', 'optimus', 'energy', 'earnings', 'markets'],
+  nvidia: ['chips', 'datacenter', 'earnings', 'supply', 'policy', 'markets'],
 }
+
+// Public companies we draw a price chart for.
+export const TICKERS = ['NVDA', 'TSLA', 'MSFT', 'GOOGL', 'AAPL', 'META', 'AMZN', 'AMD', 'TSM', 'INTC', 'FROG']
 
 // Second, light pass over a finished story: picks things the UI shows around the story.
 // It never writes new facts: the hype headline is chosen from the given titles, the highlight is copied from our title.

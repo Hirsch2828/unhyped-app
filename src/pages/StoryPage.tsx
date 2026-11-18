@@ -5,7 +5,8 @@ import { ensureStories, findStory, useStories } from '../lib/stories'
 import { usePrefs, type Snap } from '../lib/prefs'
 import { feedFor, timeAgo, todayIssue } from '../lib/feed'
 import type { Story } from '../data/types'
-import StoryFigure from '../components/anatomy/StoryFigure'
+import PriceChart from '../components/PriceChart'
+import { AnatomyButton, BullBear, HypeMeter, WatchNext, WhyItMatters } from '../components/StoryParts'
 import { CategoryBadge, CompactRow, Headline, Photo, SaveButton, TrustMark, plural } from '../components/ui'
 import SignupSheet from '../components/SignupSheet'
 import { onePerThread, siblingsOf } from '../lib/threads'
@@ -82,7 +83,7 @@ export default function StoryPage() {
       /* user cancelled */
     }
   }
-  const { issue } = todayIssue(feedFor(prefs.topics, prefs.depth))
+  const { issue } = todayIssue(feedFor(prefs.topics, prefs.depth, prefs.own))
   const at = issue.findIndex((s) => s.id === story.id)
   const next = at >= 0 ? issue[at + 1] : undefined
   // The same event's other developments first, then related stories (one per event).
@@ -148,9 +149,18 @@ export default function StoryPage() {
           <div className="flex flex-wrap items-center gap-2.5">
             <TrustMark label={story.label} explain />
             <CategoryBadge story={story} className="!text-ink" />
+            <span className="sm:ml-auto">
+              <AnatomyButton story={story} />
+            </span>
           </div>
-          <h1 className="mt-4 text-[36px] font-bold leading-[37px] tracking-[-0.04em] text-ink sm:text-[56px] sm:leading-[56px]">
-            <Headline story={story} />
+          {story.debunked && (
+            <div className="mt-4 border-2 border-ink p-4">
+              <p className="t-eyebrow text-ink">Debunked</p>
+              <p className="mt-1 text-[16px] leading-[24px] text-ink">{story.debunkNote || 'This story turned out to be wrong.'}</p>
+            </div>
+          )}
+          <h1 className={`mt-4 text-[36px] font-bold leading-[37px] tracking-[-0.04em] text-ink sm:text-[56px] sm:leading-[56px] ${story.debunked ? 'line-through decoration-[3px]' : ''}`}>
+            <Headline story={story} mark={!story.debunked} />
           </h1>
           <p className="mt-4 text-[19px] leading-[28px] text-ink sm:text-[22px] sm:leading-[32px]">{story.dek}</p>
           {story.hypeTitle && (
@@ -168,6 +178,9 @@ export default function StoryPage() {
               {timeAgo(story.hoursAgo)} · {story.readMinutes} min read
             </span>
           </p>
+          <div className="mt-4">
+            <HypeMeter story={story} />
+          </div>
 
           {deltaBox && <div className="mt-6 lg:hidden">{deltaBox}</div>}
 
@@ -190,12 +203,8 @@ export default function StoryPage() {
             ))}
           </ol>
 
-          {/* Inside the story: its company taken apart, or the scene of its event, scrubbed by the scroll. */}
-          <StoryFigure story={story} size="full" className="-mx-4 mt-9 sm:mx-0" />
-
-          <div className="mt-9 bg-ink p-5 text-paper sm:p-7">
-            <p className="text-[15px] font-bold text-lime">Why it matters</p>
-            <p className="mt-2 text-[19px] leading-[28px] sm:text-[21px] sm:leading-[31px]">{story.whyItMatters}</p>
+          <div className="mt-9">
+            <WhyItMatters story={story} />
           </div>
 
           {paragraphs.length > 0 && (
@@ -210,12 +219,21 @@ export default function StoryPage() {
               </div>
             </>
           )}
-          {story.marketReaction && (
-            <div className="mt-6 border-t border-rule pt-4">
-              <p className="text-[15px] font-bold text-ink">How the market reacted</p>
-              <p className="mt-1.5 text-[17px] leading-[27px] text-ink">{story.marketReaction}</p>
-              <p className="t-meta mt-2 text-ink-soft">Unhyped reports what happened. We never give buy or sell advice.</p>
-            </div>
+          <WatchNext story={story} />
+          <BullBear story={story} />
+
+          {(story.ticker || story.marketReaction) && (
+            <section>
+              <h2 className="t-section mt-10 sm:text-[26px] sm:leading-[30px]">Market reaction</h2>
+              {story.marketReaction && <p className="mt-3 text-[17px] leading-[27px] text-ink">{story.marketReaction}</p>}
+              {story.ticker ? (
+                <div className="mt-4">
+                  <PriceChart ticker={story.ticker} at={story.publishedAt ?? new Date(Date.now() - story.hoursAgo * 3600_000).toISOString()} />
+                </div>
+              ) : (
+                <p className="t-meta mt-2 text-ink-soft">What happened, not advice. We never say buy or sell.</p>
+              )}
+            </section>
           )}
 
           {unclear.length > 0 && (

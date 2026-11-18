@@ -14,8 +14,8 @@ const VIEW = 'unhyped.brief.view'
 export default function Brief() {
   const { prefs } = usePrefs()
   useStories()
-  const items = briefItems(prefs.topics).slice(0, 5)
-  const rumors = feedFor(prefs.topics, 'everything').filter((s) => s.label === 'rumor').slice(0, 4)
+  const items = briefItems(prefs.topics, prefs.own).slice(0, 5)
+  const rumors = feedFor(prefs.topics, 'everything', prefs.own).filter((s) => s.label === 'rumor').slice(0, 4)
   const [view, setView] = useState<'cards' | 'list'>(() => {
     try {
       return localStorage.getItem(VIEW) === 'list' ? 'list' : 'cards'
