@@ -4,7 +4,7 @@ import { Bookmark, Clock, Newspaper, Settings } from 'lucide-react'
 import { Logo } from './ui'
 import { feedFor, issueDate, issueNo, todayIssue } from '../lib/feed'
 import { usePrefs } from '../lib/prefs'
-import { useStories } from '../lib/stories'
+import { loadLive, useStories } from '../lib/stories'
 
 const tabs = [
   { to: '/', label: 'Today', icon: Newspaper },
@@ -25,12 +25,63 @@ export function Stamp({ className = '' }: { className?: string }) {
     >
       {articles24h !== null && (
         <>
-          <s className="text-ink-faint">{articles24h}</s>
+          <s className="text-ink-soft">{articles24h}</s>
           <span aria-hidden>→</span>
         </>
       )}
       <span className="bg-lime px-1 text-lime-ink">{issue.length} stories</span>
     </span>
+  )
+}
+
+// While the issue loads: a quiet skeleton in the shape of the page. If it can't load: say so, offer a retry.
+function FeedGate() {
+  const { mode } = useStories()
+  if (mode === 'loading')
+    return (
+      <div className="px-4 pt-6 sm:px-8" role="status" aria-label="Loading today’s issue">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+          <div className="skeleton aspect-[16/10] lg:col-span-8" />
+          <div className="flex flex-col gap-3 lg:col-span-4">
+            <div className="skeleton h-5 w-40" />
+            <div className="skeleton h-10 w-full" />
+            <div className="skeleton h-10 w-4/5" />
+            <div className="skeleton mt-3 h-4 w-full" />
+            <div className="skeleton h-4 w-11/12" />
+            <div className="skeleton h-4 w-3/4" />
+          </div>
+        </div>
+        <span className="sr-only">Loading…</span>
+      </div>
+    )
+  if (mode === 'error')
+    return (
+      <div className="px-4 pt-14 sm:px-8">
+        <p className="t-meta uppercase text-ink-soft">Issue No. {issueNo()} · not delivered</p>
+        <h1 className="mt-3 max-w-2xl text-[34px] font-bold leading-[36px] tracking-[-0.035em] sm:text-[46px] sm:leading-[47px]">
+          We couldn’t load today’s issue.
+        </h1>
+        <p className="mt-4 max-w-xl text-[18px] leading-[27px] text-ink">Check your connection and try again. Nothing you saved is lost.</p>
+        <button onClick={() => loadLive()} className="press mt-6 inline-flex min-h-[48px] items-center bg-ink px-6 text-[15px] font-semibold text-paper">
+          Try again
+        </button>
+      </div>
+    )
+  return <Outlet />
+}
+
+export function NotFound() {
+  return (
+    <div className="px-4 pt-14 sm:px-8">
+      <p className="t-meta uppercase text-ink-soft">Error 404 · page not printed</p>
+      <h1 className="mt-3 max-w-3xl text-[38px] font-bold leading-[40px] tracking-[-0.04em] sm:text-[56px] sm:leading-[56px]">
+        This page isn’t in <span className="mark">any issue</span>.
+      </h1>
+      <p className="mt-4 max-w-xl text-[18px] leading-[27px] text-ink">The link may be old, or the story was taken down after review.</p>
+      <NavLink to="/" className="press mt-6 inline-flex min-h-[48px] items-center bg-ink px-6 text-[15px] font-semibold text-paper">
+        Go to today’s issue
+      </NavLink>
+    </div>
   )
 }
 
@@ -71,7 +122,7 @@ export default function Shell() {
               <span className="t-meta hidden text-ink-soft md:inline">
                 No. {issueNo()} · {issueDate()}
               </span>
-              <Stamp />
+              {pathname !== '/' && <Stamp />}
               <NavLink
                 to="/settings"
                 aria-label="Settings"
@@ -84,8 +135,11 @@ export default function Shell() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl pb-28 sm:pb-16">
-        <Outlet />
+      <nav aria-label="Skip link"><a href="#main" onClick={(e) => { e.preventDefault(); document.getElementById('main')?.focus() }} className="sr-only z-50 bg-ink px-4 py-3 text-paper focus:not-sr-only focus:fixed focus:left-3 focus:top-3">
+        Skip to content
+      </a></nav>
+      <main id="main" tabIndex={-1} className="mx-auto max-w-7xl pb-28 outline-none sm:pb-16">
+        {pathname === '/settings' ? <Outlet /> : <FeedGate />}
       </main>
 
       <nav aria-label="Main" className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t-2 border-ink bg-paper sm:hidden">

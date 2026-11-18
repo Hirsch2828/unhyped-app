@@ -92,13 +92,19 @@ export function LabelTag({ label, light = false }: { label: Label; light?: boole
 }
 
 /** time · trust mark, in meta style */
-export function MetaRow({ story, light = false, explain = false }: { story: Story; light?: boolean; explain?: boolean }) {
+export function MetaRow({ story, light = false, explain = false, read = false }: { story: Story; light?: boolean; explain?: boolean; read?: boolean }) {
   return (
     <div className={`t-meta flex flex-wrap items-center gap-x-2 gap-y-1 ${light ? 'text-paper/85' : 'text-ink-soft'}`}>
       <TrustMark label={story.label} light={light} explain={explain} />
       <span>{timeAgo(story.hoursAgo)}</span>
       <span aria-hidden>·</span>
       <span>{plural(story.sources.length || story.mergedCount, 'source')}</span>
+      {read && (
+        <>
+          <span aria-hidden>·</span>
+          <span>Read</span>
+        </>
+      )}
     </div>
   )
 }
@@ -183,6 +189,9 @@ export function Plate({ story, size = 'md', className = '' }: { story: Pick<Stor
   )
 }
 
+/** A real photo or the story's own illustration exists (otherwise only the typographic plate). */
+export const hasPicture = (s: Pick<Story, 'photo' | 'ownImage'>) => !!s.photo || !!s.ownImage
+
 type PhotoStory = Pick<Story, 'id' | 'image' | 'illustration' | 'title' | 'topic' | 'area' | 'ownImage' | 'label' | 'photo' | 'photoCredit'>
 
 // The story's picture, in one warm black-and-white treatment. Order: a real photo from the sources,
@@ -244,8 +253,9 @@ export function StoryImg({
 }
 
 // Headline with the one phrase that carries the news under the lime highlighter.
-export function Headline({ story, className = '' }: { story: Pick<Story, 'title' | 'highlight'>; className?: string }) {
-  const hl = story.highlight
+// Only one highlighter per screen (the lead, the story page, a brief card), so it keeps its meaning.
+export function Headline({ story, className = '', mark = false }: { story: Pick<Story, 'title' | 'highlight'>; className?: string; mark?: boolean }) {
+  const hl = mark ? story.highlight : null
   const i = hl ? story.title.indexOf(hl) : -1
   if (!hl || i < 0) return <span className={className}>{story.title}</span>
   return (
@@ -287,16 +297,16 @@ export function StoryCard({ story, wide = false, rowOnPhone = false }: { story: 
   return (
     <Link
       to={`/story/${story.id}`}
-      className={`press group flex ${rowOnPhone ? 'flex-row-reverse items-start gap-4 border-t border-rule py-4 sm:flex-col sm:gap-0 sm:border-0 sm:py-0' : 'flex-col'} ${wide || rowOnPhone ? 'w-full' : 'w-[70vw] max-w-[280px] shrink-0 snap-start sm:w-[280px]'} ${read ? 'opacity-55' : ''}`}
+      className={`press group flex ${rowOnPhone ? 'flex-row-reverse items-start gap-4 border-t border-rule py-4 sm:flex-col sm:gap-0 sm:border-0 sm:py-0' : 'flex-col'} ${wide || rowOnPhone ? 'w-full' : 'w-[70vw] max-w-[280px] shrink-0 snap-start sm:w-[280px]'} `}
     >
       <Photo story={story} className={`${rowOnPhone ? 'h-24 w-24 shrink-0 sm:h-auto sm:w-full' : 'w-full'} sm:aspect-[3/2] ${rowOnPhone ? '' : 'aspect-[3/2]'}`} />
       <span className="min-w-0 flex-1">
         <CategoryBadge story={story} className={rowOnPhone ? 'sm:mt-3' : 'mt-3'} />
-        <h3 className="mt-1 text-[18px] font-semibold leading-[22px] tracking-[-0.015em] text-ink group-hover:underline group-hover:decoration-2 group-hover:underline-offset-4 sm:text-[21px] sm:font-bold sm:leading-[25px]">
+        <h3 className={`mt-1 text-[18px] font-semibold leading-[22px] tracking-[-0.015em] ${read ? 'text-ink-soft' : 'text-ink'} group-hover:underline group-hover:decoration-2 group-hover:underline-offset-4 sm:text-[21px] sm:font-bold sm:leading-[25px]`}>
           <Headline story={story} />
         </h3>
         <span className="mt-2 flex items-center justify-between">
-          <MetaRow story={story} />
+          <MetaRow story={story} read={read} />
           <SaveButton story={story} className="-my-3 -mr-3 hidden sm:grid" />
         </span>
       </span>
@@ -309,16 +319,16 @@ export function CompactRow({ story, lead, thumb = false }: { story: Story; lead?
   const { prefs } = usePrefs()
   const read = prefs.read.includes(story.id)
   return (
-    <Link to={`/story/${story.id}`} className={`press group flex gap-4 border-t border-rule py-4 ${read ? 'opacity-55' : ''}`}>
+    <Link to={`/story/${story.id}`} className="press group flex gap-4 border-t border-rule py-4">
       {lead}
-      {thumb && <Photo story={story} size="sm" className="h-[72px] w-[96px] shrink-0 sm:h-20 sm:w-[120px]" />}
+      {thumb && hasPicture(story) && <Photo story={story} size="sm" className="h-[72px] w-[96px] shrink-0 sm:h-20 sm:w-[120px]" />}
       <span className="min-w-0 flex-1">
         <CategoryBadge story={story} />
-        <span className="mt-1 block text-[18px] font-semibold leading-[22px] tracking-[-0.015em] text-ink group-hover:underline group-hover:underline-offset-4 sm:text-[19px] sm:leading-[24px]">
+        <span className={`mt-1 block text-[18px] font-semibold leading-[22px] tracking-[-0.015em] ${read ? 'text-ink-soft' : 'text-ink'} group-hover:underline group-hover:underline-offset-4 sm:text-[19px] sm:leading-[24px]`}>
           <Headline story={story} />
         </span>
         <span className="mt-2 block">
-          <MetaRow story={story} />
+          <MetaRow story={story} read={read} />
         </span>
       </span>
     </Link>

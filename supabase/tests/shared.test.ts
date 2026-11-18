@@ -33,3 +33,21 @@ assert.equal(clampImportance(undefined, 'report'), 2)
 assert.equal(statusFor(3, 'official'), 'pending_review')
 assert.equal(statusFor(2, 'report'), 'published')
 console.log('all shared tests passed')
+
+// Writing rules
+import { copyProblems, isTitleCase } from '../functions/_shared/rules.ts'
+const good = { title: 'Tesla begins rolling out software update 2026.44.1', dek: 'The update adds new charging details.', why_it_matters: 'Owners get the new charging map this week.', claims: [{ article_ids: ['x'] }] }
+assert.deepEqual(copyProblems(good, 'tesla'), [])
+assert.equal(isTitleCase('Microsoft and Salesforce Announce Copilotforce Integration'), true)
+assert.equal(isTitleCase('Nvidia reports Q3 results amid leadership uncertainty'), false)
+assert.equal(isTitleCase('Jensen Huang states he is willing to return as Nvidia CEO'), false)
+const bad = copyProblems({ ...good, title: 'Tesla Stock Will Rise After This Revolutionary Update!', claims: [] }, 'tesla')
+assert.ok(bad.some((p) => p.includes('Title Case')))
+assert.ok(bad.some((p) => p.includes('revolutionary')))
+assert.ok(bad.some((p) => p.includes('exclamation')))
+assert.ok(bad.some((p) => p.includes('cites')))
+assert.ok(bad.some((p) => p.includes('advice')))
+assert.ok(copyProblems({ ...good, why_it_matters: 'This development highlights the growing importance of AI.' }, 'ai').some((p) => p.includes('generic')))
+assert.ok(copyProblems({ ...good, why_it_matters: 'One. Two. Three.' }, 'ai').some((p) => p.includes('more than 2')))
+assert.ok(copyProblems({ ...good, title: 'x'.repeat(90) }, 'ai').some((p) => p.includes('characters')))
+console.log('writing rules: ok')

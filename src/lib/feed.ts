@@ -1,4 +1,5 @@
 import { getStories } from './stories'
+import { onePerThread } from './threads'
 import { areas, topicInfo } from '../data/topics'
 import type { Depth, Story, Topic } from '../data/types'
 
@@ -114,10 +115,10 @@ export const today = () =>
 
 // The daily brief: the 6 most important confirmed stories (shared by Home's banner and the Brief page).
 export function briefItems(topics: Topic[]) {
-  return feedFor(topics, 'balanced')
+  const ranked = feedFor(topics, 'balanced')
     .filter((s) => s.label !== 'rumor')
-    .sort((a, b) => b.importance - a.importance || a.hoursAgo - b.hoursAgo)
-    .slice(0, 6)
+    .sort((a, b) => b.importance - a.importance || b.mergedCount - a.mergedCount || a.hoursAgo - b.hoursAgo)
+  return onePerThread(ranked, getStories()).slice(0, 6)
 }
 
 /* ---------- The daily issue ---------- */
@@ -136,17 +137,30 @@ export const isEvening = (d = new Date()) => d.getHours() >= 19 || d.getHours() 
 
 export const ISSUE_SIZE = 5
 
+// The lead carries the page: if it has no picture, swap in an equally important story that has one.
+function pictureFirst(issue: Story[]) {
+  const has = (s: Story) => !!s.photo || !!s.ownImage
+  if (!issue.length || has(issue[0])) return issue
+  const i = issue.findIndex((s) => has(s) && s.importance === issue[0].importance)
+  if (i <= 0) return issue
+  return [issue[i], ...issue.filter((_, j) => j !== i)]
+}
+
 // Today's issue: the most important confirmed stories of the last day (two days if the day was quiet).
 // `quiet` is true when nothing new came in the last 48 hours; the issue then shows the latest stories instead.
 export function todayIssue(feed: Story[]): { issue: Story[]; quiet: boolean } {
-  const ranked = feed
-    .filter((s) => s.label !== 'rumor')
-    .sort((a, b) => b.importance - a.importance || b.mergedCount - a.mergedCount || a.hoursAgo - b.hoursAgo)
+  // One story per developing event, so a busy news day isn't five versions of the same thing.
+  const ranked = onePerThread(
+    feed
+      .filter((s) => s.label !== 'rumor')
+      .sort((a, b) => b.importance - a.importance || b.mergedCount - a.mergedCount || a.hoursAgo - b.hoursAgo),
+    getStories(),
+  )
   const day = ranked.filter((s) => s.hoursAgo <= 24)
   const two = ranked.filter((s) => s.hoursAgo <= 48)
-  if (day.length >= 3) return { issue: day.slice(0, ISSUE_SIZE), quiet: false }
-  if (two.length >= 3) return { issue: two.slice(0, ISSUE_SIZE), quiet: false }
-  const latest = [...feed].filter((s) => s.label !== 'rumor').sort((a, b) => a.hoursAgo - b.hoursAgo).slice(0, 12)
+  if (day.length >= 3) return { issue: pictureFirst(day.slice(0, ISSUE_SIZE)), quiet: false }
+  if (two.length >= 3) return { issue: pictureFirst(two.slice(0, ISSUE_SIZE)), quiet: false }
+  const latest = onePerThread([...feed], getStories()).filter((s) => s.label !== 'rumor').sort((a, b) => a.hoursAgo - b.hoursAgo).slice(0, 12)
   latest.sort((a, b) => b.importance - a.importance || b.mergedCount - a.mergedCount)
   return { issue: latest.slice(0, ISSUE_SIZE), quiet: true }
 }

@@ -1,6 +1,7 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Bookmark, BookmarkCheck } from 'lucide-react'
-import { useStories } from '../lib/stories'
+import { ensureStories, findStory, useStories } from '../lib/stories'
 import { usePrefs } from '../lib/prefs'
 import { CategoryBadge, ImageScope, MetaRow, StoryImg, plural } from '../components/ui'
 
@@ -24,8 +25,12 @@ function RemoveButton({ id }: { id: string }) {
 
 export default function Saved() {
   const { prefs } = usePrefs()
-  const { stories } = useStories()
-  const items = stories.filter((s) => prefs.saved.includes(s.id))
+  const { mode } = useStories()
+  // Saved stories can be older than the feed's 7 days: fetch those by id.
+  useEffect(() => {
+    if (mode === 'live') ensureStories(prefs.saved)
+  }, [mode, prefs.saved])
+  const items = [...prefs.saved].reverse().map(findStory).filter((s): s is NonNullable<typeof s> => !!s)
 
   return (
     <ImageScope>

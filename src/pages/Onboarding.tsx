@@ -1,13 +1,19 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import type { Depth, Topic } from '../data/types'
 import { allTopics, depthInfo, topicInfo } from '../data/topics'
 import { usePrefs } from '../lib/prefs'
+import { getStories, useStories } from '../lib/stories'
+import { feedFor } from '../lib/feed'
+import { onePerThread } from '../lib/threads'
 import { Button, Check, Icon, Logo, TrustMark, labelHint } from '../components/ui'
 
 export default function Onboarding() {
   const { update } = usePrefs()
+  const { articles24h, mode } = useStories()
+  // How many stories each depth would put in today's issue, for the topics picked so far.
+  const storiesFor = (d: Depth) => onePerThread(feedFor(topics.length ? topics : ['ai'], d).filter((x) => x.hoursAgo <= 24), getStories()).length
   const nav = useNavigate()
   const [step, setStep] = useState(1)
   const [topics, setTopics] = useState<Topic[]>(['ai'])
@@ -31,7 +37,7 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-sand sm:grid sm:place-items-center sm:py-10">
+    <main className="min-h-screen bg-sand sm:grid sm:place-items-center sm:py-10">
       <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col px-6 pb-6 pt-4 sm:min-h-0 sm:rounded-media sm:bg-sand-50 sm:px-10 sm:py-8 sm:shadow-soft">
         <div className="flex h-11 items-center justify-between">
           <Logo />
@@ -86,6 +92,9 @@ export default function Onboarding() {
                     </li>
                   ))}
                 </ul>
+                <Link to="/how" className="mt-4 inline-flex min-h-[44px] items-center gap-1.5 text-[15px] font-semibold text-ink underline decoration-1 underline-offset-[3px] hover:decoration-2">
+                  {articles24h !== null ? `How ${articles24h} articles became today’s handful of stories` : 'How we choose what you see'} <ArrowRight className="h-4 w-4" />
+                </Link>
               </div>
             </>
           )}
@@ -107,14 +116,22 @@ export default function Onboarding() {
                     >
                       <Icon name={depthInfo[d].icon} className={`h-6 w-6 shrink-0 ${on ? 'text-forest' : 'text-charcoal-400'}`} strokeWidth={1.5} />
                       <span className="flex-1">
-                        <span className={`block font-serif text-[19px] font-semibold leading-6 ${on ? 'text-forest' : ''}`}>{depthInfo[d].name}</span>
-                        <span className="t-meta mt-1 block text-charcoal-400">{depthInfo[d].desc}</span>
+                        <span className="block text-[19px] font-semibold leading-6 tracking-[-0.01em]">{depthInfo[d].name}</span>
+                        <span className="mt-1 block text-[14px] leading-[20px] text-ink-soft">{depthInfo[d].desc}</span>
                       </span>
+                      {mode === 'live' && <span className="t-meta shrink-0 text-ink-soft">{storiesFor(d)} today</span>}
                       <Check on={on} />
                     </button>
                   )
                 })}
               </div>
+              {/* The promise, made concrete before you commit: what today's issue will hold. */}
+              {mode === 'live' && (
+                <p className="mt-5 text-[17px] leading-[25px] text-ink" aria-live="polite">
+                  Today that’s <span className="mark font-semibold">{storiesFor(depth)} {storiesFor(depth) === 1 ? 'story' : 'stories'}</span>
+                  {articles24h !== null ? `, picked from ${articles24h} articles.` : '.'}
+                </p>
+              )}
             </>
           )}
         </div>
@@ -133,6 +150,6 @@ export default function Onboarding() {
           {step === 2 ? 'No account needed. Start reading right away.' : 'No account needed.'}
         </p>
       </div>
-    </div>
+    </main>
   )
 }

@@ -17,18 +17,16 @@ export default function Settings() {
   const { prefs, update, reset } = usePrefs()
   const nav = useNavigate()
   const [toast, setToast] = useState(false)
-  const first = useRef(true)
-
-  // Show "Preferences updated" after any change (saved automatically).
+  // Show "Preferences saved" after a real change (saved automatically), not on first render.
+  const key = JSON.stringify([prefs.topics, prefs.areas, prefs.depth, prefs.briefTime, prefs.reminder])
+  const initial = useRef(key)
   useEffect(() => {
-    if (first.current) {
-      first.current = false
-      return
-    }
+    if (key === initial.current) return
+    initial.current = key
     setToast(true)
     const t = setTimeout(() => setToast(false), 2000)
     return () => clearTimeout(t)
-  }, [prefs.topics, prefs.areas, prefs.depth, prefs.briefTime, prefs.reminder])
+  }, [key])
 
   const toggleTopic = (t: Topic) => {
     const next = prefs.topics.includes(t) ? prefs.topics.filter((x) => x !== t) : [...prefs.topics, t]

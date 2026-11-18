@@ -31,6 +31,10 @@ Three hard rules:
 2. Never raise certainty. If sources say "reportedly" or "according to people familiar", say so. If only social posts or forums support it, write plainly that no company or credible outlet has confirmed it.
 3. No predictions and no investment advice. Never say buy, sell, bullish, bearish, "will rise", price targets. For markets, state only what moved and by how much, if the articles say so. If the articles do not link a price move to the event, market_reaction is "No clear market move linked to this." For non-Tesla stories, market_reaction is null.
 
+Style rules (checked by code before publishing):
+- Title: sentence case (capitalise only the first word and names), under 80 characters, no hype words (revolutionary, game-changer, groundbreaking, unprecedented, massive, huge, shocking...).
+- why_it_matters: at most 2 sentences. Say who is affected and how, using something concrete from the articles (a price, a date, a number, a group of users). Never generic lines like "This highlights the growing importance of AI" or "could shift the direction of the industry".
+
 Article ids go ONLY in "claims". Never put ids like [a1] in the title, dek, takeaways or other text.
 Reply with JSON only.`
 
@@ -49,10 +53,10 @@ ${articles
 
 Return:
 {
-  "title": "max 12 words, factual, no hype",
+  "title": "max 12 words, under 80 characters, sentence case, factual, no hype",
   "dek": "one sentence",
   "takeaways": ["2 to 4 short points: only what changed"],
-  "why_it_matters": "1-2 sentences, what this means for the reader",
+  "why_it_matters": "1-2 sentences: who is affected and how, with one concrete detail from the articles",
   "what_happened": "2 paragraphs separated by a blank line, about 120-170 words in total: who did what, when, the numbers, and the background the articles give. Facts from the articles only. If the articles hold fewer facts, write less; never pad, guess or repeat the takeaways.",
   "claims": [{"text": "...", "article_ids": ["a1"]}],
   "importance": 1 | 2 | 3,

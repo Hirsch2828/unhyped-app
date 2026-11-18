@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, ExternalLink, Share2 } from 'lucide-react'
-import { findStory, useStories } from '../lib/stories'
+import { ensureStories, findStory, useStories } from '../lib/stories'
 import { usePrefs, type Snap } from '../lib/prefs'
 import { feedFor, timeAgo, todayIssue } from '../lib/feed'
 import type { Story } from '../data/types'
-import { CategoryBadge, CompactRow, Headline, Photo, SaveButton, TrustMark, labelHint, plural } from '../components/ui'
+import { CategoryBadge, CompactRow, Headline, Photo, SaveButton, TrustMark, plural } from '../components/ui'
 import SignupSheet from '../components/SignupSheet'
+import { onePerThread, siblingsOf } from '../lib/threads'
 
 // One sentence that explains why the story carries its label (decided by rule, not by AI).
 export function statusLine(s: Story) {
@@ -23,8 +24,11 @@ export function statusLine(s: Story) {
 
 export default function StoryPage() {
   const { id = '' } = useParams()
-  const { stories } = useStories()
+  const { stories, mode } = useStories()
   const story = findStory(id)
+  useEffect(() => {
+    if (mode === 'live' && !story) ensureStories([id])
+  }, [mode, id, story])
   const nav = useNavigate()
   const { prefs, remember } = usePrefs()
   const [sheet, setSheet] = useState(false)
@@ -64,7 +68,8 @@ export default function StoryPage() {
     if (!prefs.email && !prefs.signupDismissed) setSheet(true)
   }
   const share = async () => {
-    const url = window.location.href
+    // A share link with a real preview card (see api/share.js), not the bare #/ app URL.
+    const url = `${window.location.origin}/s/${story.id}`
     try {
       if (navigator.share) await navigator.share({ title: story.title, url })
       else {
@@ -79,15 +84,19 @@ export default function StoryPage() {
   const { issue } = todayIssue(feedFor(prefs.topics, prefs.depth))
   const at = issue.findIndex((s) => s.id === story.id)
   const next = at >= 0 ? issue[at + 1] : undefined
-  const others = stories.filter((s) => s.id !== story.id && prefs.topics.includes(s.topic))
-  const related = [
-    ...others.filter((s) => s.area && s.area === story.area),
-    ...others.filter((s) => s.topic === story.topic && s.area !== story.area),
-  ].slice(0, 4)
+  // The same event's other developments first, then related stories (one per event).
+  const developing = siblingsOf(story, stories)
+  const devIds = new Set(developing.map((s) => s.id))
+  const others = stories.filter((s) => s.id !== story.id && !devIds.has(s.id) && prefs.topics.includes(s.topic))
+  const related = onePerThread(
+    [...others.filter((s) => s.area && s.area === story.area), ...others.filter((s) => s.topic === story.topic && s.area !== story.area)],
+    stories,
+  ).slice(0, 4)
+  const hasPicture = !!story.photo || !!story.ownImage
   const delta = deltaOf(story, prevSnap)
   const paragraphs = story.whatHappened.split(/\n\s*\n/).filter(Boolean)
   const facts = story.claims?.length ? story.claims : story.takeaways.map((t) => ({ text: t, n: 0 }))
-  const unclear = [...(story.label !== 'official' ? [labelHint(story.label)] : []), ...(story.uncertain ?? [])]
+  const unclear = story.uncertain ?? []
 
   const deltaBox = delta.length > 0 && (
     <div className="border-2 border-ink p-4">
@@ -140,7 +149,7 @@ export default function StoryPage() {
             <CategoryBadge story={story} className="!text-ink" />
           </div>
           <h1 className="mt-4 text-[36px] font-bold leading-[37px] tracking-[-0.04em] text-ink sm:text-[56px] sm:leading-[56px]">
-            <Headline story={story} />
+            <Headline story={story} mark />
           </h1>
           <p className="mt-4 text-[19px] leading-[28px] text-ink sm:text-[22px] sm:leading-[32px]">{story.dek}</p>
           {story.hypeTitle && (
@@ -151,16 +160,21 @@ export default function StoryPage() {
           )}
           <p className="mt-5 border-y border-rule py-3 text-[15px] leading-[22px] text-ink-soft">
             <b className="text-ink">Why “{story.label === 'official' ? 'Official' : story.label === 'report' ? 'Report' : 'Rumor'}”:</b> {statusLine(story)}{' '}
-            <span className="t-meta whitespace-nowrap">
-              · {timeAgo(story.hoursAgo)} · {story.readMinutes} min read
+            <Link to={`/how?layer=label`} className="font-semibold text-ink underline decoration-1 underline-offset-[3px] hover:decoration-2">
+              How labels work
+            </Link>
+            <span className="t-meta mt-1 block">
+              {timeAgo(story.hoursAgo)} · {story.readMinutes} min read
             </span>
           </p>
 
           {deltaBox && <div className="mt-6 lg:hidden">{deltaBox}</div>}
 
-          <figure className="-mx-4 mt-7 sm:mx-0">
-            <Photo story={story} size="lg" credit eager className="aspect-[16/10] w-full sm:aspect-[16/9]" />
-          </figure>
+          {hasPicture && (
+            <figure className="-mx-4 mt-7 sm:mx-0">
+              <Photo story={story} size="lg" credit eager className="aspect-[16/10] w-full sm:aspect-[16/9]" />
+            </figure>
+          )}
 
           <h2 className="t-section mt-10 sm:text-[26px] sm:leading-[30px]">The short version</h2>
           <ol className="mt-4 space-y-3.5">
@@ -215,12 +229,33 @@ export default function StoryPage() {
           )}
         </div>
 
-        <aside className="flex min-w-0 flex-[1_1_300px] flex-col gap-10 lg:sticky lg:top-24">
+        <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-10 lg:sticky lg:top-24">
           {deltaBox && <div className="hidden lg:block">{deltaBox}</div>}
           <section>
             <h2 className="t-section rule-strong pt-3">Sources ({story.sources.length || story.mergedCount})</h2>
             <SourceTable story={story} />
           </section>
+          {developing.length > 0 && (
+            <section id="developing">
+              <h2 className="t-section rule-strong pt-3">Developing story</h2>
+              <p className="mt-1 text-[15px] text-ink-soft">{plural(developing.length, 'more update')} on the same event, newest first.</p>
+              <ol className="mt-2 border-b border-rule">
+                {developing.map((s) => (
+                  <li key={s.id}>
+                    <Link to={`/story/${s.id}`} className="press group flex min-h-[44px] items-baseline gap-3 border-t border-rule py-3">
+                      <span className="t-meta w-10 shrink-0 text-ink-soft">{timeAgo(s.hoursAgo).replace(' ago', '')}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[16px] font-semibold leading-[22px] text-ink group-hover:underline">{s.title}</span>
+                        <span className="mt-1.5 block">
+                          <TrustMark label={s.label} />
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
           {related.length > 0 && (
             <section>
               <h2 className="t-section rule-strong pt-3">Related</h2>
@@ -231,7 +266,7 @@ export default function StoryPage() {
               </div>
             </section>
           )}
-        </aside>
+        </div>
       </div>
 
       <div className="px-4 sm:px-8">

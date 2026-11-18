@@ -1,7 +1,7 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { isEvening } from './lib/feed'
-import Shell from './components/Shell'
+import Shell, { NotFound } from './components/Shell'
 import { usePrefs } from './lib/prefs'
 import Brief from './pages/Brief'
 import Category from './pages/Category'
@@ -11,6 +11,9 @@ import Onboarding from './pages/Onboarding'
 import Saved from './pages/Saved'
 import Settings from './pages/Settings'
 import StoryPage from './pages/StoryPage'
+
+// Loaded only when opened, so the home page stays light.
+const How = lazy(() => import('./pages/How'))
 
 export default function App() {
   const { prefs } = usePrefs()
@@ -31,6 +34,10 @@ export default function App() {
     <Routes>
       <Route path="/welcome" element={<Onboarding />} />
       <Route path="/editor" element={<Editor />} />
+      {/* Open before onboarding too: the welcome screen links here. */}
+      <Route element={<Shell />}>
+        <Route path="/how" element={<Suspense fallback={null}><How /></Suspense>} />
+      </Route>
       <Route element={prefs.onboarded ? <Shell /> : <Navigate to="/welcome" replace />}>
         <Route path="/" element={<Home />} />
         <Route path="/story/:id" element={<StoryPage />} />
@@ -38,8 +45,8 @@ export default function App() {
         <Route path="/brief" element={<Brief />} />
         <Route path="/saved" element={<Saved />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

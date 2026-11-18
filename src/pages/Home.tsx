@@ -1,10 +1,11 @@
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
-import { applyFilter, feedFor, homeChips, issueNo, todayIssue } from '../lib/feed'
+import { applyFilter, feedFor, homeChips, issueNo, timeAgo, todayIssue } from '../lib/feed'
 import { usePrefs, type Snap } from '../lib/prefs'
 import { useStories } from '../lib/stories'
+import { siblingsOf, threadsOf, onePerThread } from '../lib/threads'
 import type { Story } from '../data/types'
-import { CategoryBadge, CompactRow, Headline, MetaRow, Photo, StoryCard, TrustMark } from '../components/ui'
+import { CategoryBadge, CompactRow, Headline, MetaRow, Photo, StoryCard, TrustMark, hasPicture } from '../components/ui'
 
 // Changed since you read it: more sources, a new label or a new headline.
 export const changedSince = (s: Story, snap?: Snap) =>
@@ -12,7 +13,7 @@ export const changedSince = (s: Story, snap?: Snap) =>
 
 export default function Home() {
   const { prefs } = usePrefs()
-  const { articles24h } = useStories()
+  const { articles24h, stories } = useStories()
   const [params, setParams] = useSearchParams()
   const chips = homeChips(prefs.topics, prefs.depth)
   const filter = chips.some((c) => c.id === params.get('f')) ? params.get('f')! : 'all'
@@ -22,7 +23,9 @@ export default function Home() {
   const feed = applyFilter(feedFor(prefs.topics, prefs.depth), filter)
   const { issue, quiet } = todayIssue(feed)
   const [lead, ...also] = issue
-  const shown = new Set(issue.map((s) => s.id))
+  // Hide every story whose event is already in the issue; its other developments sit under it.
+  const threads = threadsOf(stories)
+  const shown = new Set(issue.flatMap((s) => (threads.get(s.id) ?? [s]).map((x) => x.id)))
 
   // Since your last visit
   const prev = prefs.prevVisit
@@ -31,9 +34,12 @@ export default function Home() {
   const sinceList = [...new Map([...changed, ...fresh].map((s) => [s.id, s])).values()]
 
   // Everything else: today first, then the rest of the week by importance. Each story once.
-  const rest = feed
-    .filter((s) => !shown.has(s.id))
-    .sort((a, b) => Number(b.hoursAgo <= 24) - Number(a.hoursAgo <= 24) || b.importance - a.importance || a.hoursAgo - b.hoursAgo)
+  const rest = onePerThread(
+    feed
+      .filter((s) => !shown.has(s.id))
+      .sort((a, b) => Number(b.hoursAgo <= 24) - Number(a.hoursAgo <= 24) || b.importance - a.importance || a.hoursAgo - b.hoursAgo),
+    stories,
+  )
   const official = rest.filter((s) => s.label === 'official').slice(0, 4)
   const officialIds = new Set(official.map((s) => s.id))
   const list = rest.filter((s) => !officialIds.has(s.id)).slice(0, 10)
@@ -47,10 +53,21 @@ export default function Home() {
   return (
     <div className="fade-in px-4 pb-2 sm:px-8">
       <div className="flex flex-col gap-3 pt-5 sm:pt-7 lg:flex-row lg:items-center lg:justify-between">
-        <p className="text-[16px] leading-6 text-ink-soft sm:text-[18px]">{intro}</p>
-        <nav aria-label="Filter by desk" className="-mx-1 flex flex-wrap">
+        {articles24h !== null && !quiet ? (
+          // The cover line: the noise we read, struck through, and what made the issue.
+          <p className="text-[22px] font-bold leading-[28px] tracking-[-0.025em] text-ink sm:text-[28px] sm:leading-[34px]">
+            <s className="font-medium text-ink-soft decoration-2">{articles24h} articles</s> <span aria-hidden>→</span>{' '}
+            <span className="mark">{issue.length} stories</span> worth your time.{' '}
+            <Link to="/how" className="whitespace-nowrap text-[15px] font-semibold tracking-normal text-ink-soft underline decoration-1 underline-offset-[3px] hover:text-ink sm:text-[16px]">
+              How we choose
+            </Link>
+          </p>
+        ) : (
+          <p className="text-[16px] leading-6 text-ink-soft sm:text-[18px]">{intro}</p>
+        )}
+        <nav aria-label="Filter by desk" className="no-scrollbar -mx-4 flex overflow-x-auto px-3 lg:mx-0 lg:flex-wrap lg:px-0">
           {chips.slice(0, 6).map((c) => (
-            <button key={c.id} onClick={() => pick(c.id)} aria-pressed={filter === c.id} className="press flex h-11 items-center px-1">
+            <button key={c.id} onClick={() => pick(c.id)} aria-pressed={filter === c.id} className="press flex h-11 shrink-0 items-center px-1">
               <span className={`flex h-8 items-center px-2.5 text-[14px] font-semibold ${filter === c.id ? 'bg-ink text-paper' : 'text-ink-soft hover:text-ink'}`}>{c.name}</span>
             </button>
           ))}
@@ -82,7 +99,7 @@ export default function Home() {
         </section>
       ) : (
         <>
-          {lead ? <Lead story={lead} read={prefs.read.includes(lead.id)} /> : <p className="mt-10 text-[18px] text-ink-soft">No stories on this desk this week.</p>}
+          {lead ? <Lead story={lead} read={prefs.read.includes(lead.id)} more={siblingsOf(lead, stories)} /> : <p className="mt-10 text-[18px] text-ink-soft">No stories on this desk this week.</p>}
 
           {also.length > 0 && (
             <section className="mt-12 sm:mt-14" aria-label="Also in today's issue">
@@ -155,32 +172,78 @@ export default function Home() {
 
 /* ---------- The lead story ---------- */
 
-function Lead({ story, read }: { story: Story; read: boolean }) {
+function Lead({ story, read, more }: { story: Story; read: boolean; more: Story[] }) {
   return (
-    <Link to={`/story/${story.id}`} className={`press group mt-5 grid grid-cols-1 gap-x-8 gap-y-4 sm:mt-6 lg:grid-cols-12 ${read ? 'opacity-60' : ''}`}>
-      <Photo story={story} size="lg" credit eager className="-mx-4 aspect-[4/3] sm:mx-0 sm:aspect-[16/10] lg:col-span-8" />
-      <div className="flex flex-col gap-4 lg:col-span-4 lg:pt-1">
+    <div className="mt-5 grid grid-cols-1 gap-x-8 gap-y-4 sm:mt-6 lg:grid-cols-12">
+      {hasPicture(story) ? (
+        <Link to={`/story/${story.id}`} tabIndex={-1} aria-hidden className="press -mx-4 sm:mx-0 lg:col-span-8">
+          <Photo story={story} size="lg" credit eager className="aspect-[4/3] sm:aspect-[16/10]" />
+        </Link>
+      ) : (
+        // No picture: the headline itself is the cover, set big across the wide column.
+        <div className="border-t-2 border-ink pt-4 lg:col-span-8">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <TrustMark label={story.label} />
+            <CategoryBadge story={story} className="!text-ink" />
+          </div>
+          <h1 className="mt-4 text-balance text-[38px] font-bold leading-[39px] tracking-[-0.04em] text-ink sm:text-[64px] sm:leading-[62px] lg:text-[72px] lg:leading-[70px]">
+            <Link to={`/story/${story.id}`} className="hover:underline hover:decoration-[4px] hover:underline-offset-[8px]">
+              <Headline story={story} mark />
+            </Link>
+          </h1>
+          <p className="mt-5 max-w-[640px] text-[19px] leading-[28px] text-ink sm:text-[22px] sm:leading-[32px]">{story.dek}</p>
+        </div>
+      )}
+      <div className={`flex flex-col gap-4 lg:col-span-4 lg:row-span-2 ${hasPicture(story) ? 'lg:pt-1' : 'lg:border-t-2 lg:border-ink lg:pt-4'}`}>
+        {hasPicture(story) && (
+          <>
         <div className="flex flex-wrap items-center gap-2.5">
           <TrustMark label={story.label} />
           <CategoryBadge story={story} className="!text-ink" />
         </div>
         <h1
-          className={`font-bold tracking-[-0.035em] text-ink group-hover:underline group-hover:decoration-[3px] group-hover:underline-offset-[6px] ${
+          className={`text-balance font-bold tracking-[-0.035em] text-ink ${
             story.title.length > 70
               ? 'text-[30px] leading-[32px] sm:text-[38px] sm:leading-[40px]'
               : 'text-[34px] leading-[35px] sm:text-[46px] sm:leading-[47px]'
           }`}
         >
-          <Headline story={story} />
+          <Link to={`/story/${story.id}`} className="hover:underline hover:decoration-[3px] hover:underline-offset-[6px]">
+            <Headline story={story} mark />
+          </Link>
         </h1>
         <p className="text-[18px] leading-[27px] text-ink sm:text-[19px]">{story.dek}</p>
-        <div className="border-t border-rule pt-3.5">
+          </>
+        )}
+        <div className={hasPicture(story) ? 'border-t border-rule pt-3.5' : ''}>
           <p className="text-[14px] font-bold text-ink">Why it matters</p>
-          <p className="mt-1 text-[16.5px] leading-[25px] text-ink-soft">{story.whyItMatters}</p>
+          <p className="mt-1 text-[16.5px] leading-[25px] text-ink">{story.whyItMatters}</p>
         </div>
-        <MetaRow story={story} />
+        <MetaRow story={story} read={read} />
       </div>
-    </Link>
+      {more.length > 0 && (
+        <div className="border-t-2 border-ink pt-3 lg:col-span-8 lg:mt-2">
+          <p className="text-[14px] font-bold text-ink">
+            Developing · {more.length} more {more.length === 1 ? 'update' : 'updates'} on this
+          </p>
+          <ul className="mt-1">
+            {more.slice(0, 3).map((s) => (
+              <li key={s.id}>
+                <Link to={`/story/${s.id}`} className="press group flex min-h-[44px] items-baseline gap-3 border-t border-rule py-2.5">
+                  <span className="t-meta w-9 shrink-0 text-ink-soft">{timeAgo(s.hoursAgo).replace(' ago', '')}</span>
+                  <span className="text-[15.5px] font-medium leading-[21px] text-ink group-hover:underline">{s.title}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {more.length > 3 && (
+            <Link to={`/story/${story.id}`} className="t-eyebrow inline-flex min-h-[44px] items-center gap-1 text-ink-soft hover:text-ink">
+              All {more.length} updates <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 

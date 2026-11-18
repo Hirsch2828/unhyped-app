@@ -109,6 +109,7 @@ function Cards({ items, total, onList }: { items: Story[]; total: number; onList
 
   return (
     <div className="flex h-[calc(100dvh-64px-env(safe-area-inset-bottom))] flex-col sm:h-[calc(100dvh-64px)]">
+      <h1 className="sr-only">Today’s briefing, issue No. {issueNo()}</h1>
       <div className="mx-auto w-full max-w-3xl px-4 pt-3 sm:px-8">
         <div className="flex items-center justify-between">
           <Link to="/" className="press -ml-2 grid h-11 w-11 place-items-center" aria-label="Close briefing">
@@ -138,13 +139,13 @@ function Cards({ items, total, onList }: { items: Story[]; total: number; onList
               </div>
               <Photo story={s} className="mt-4 aspect-[16/9] max-h-[38vh] w-full" />
               <h2 className="t-h1 mt-4 text-[30px] leading-[32px] sm:text-[38px] sm:leading-[40px]">
-                <Headline story={s} />
+                <Headline story={s} mark />
               </h2>
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <TrustMark label={s.label} />
-                <span className="t-meta text-ink-soft">{statusLine(s)}</span>
+                <span className="text-[14px] leading-[20px] text-ink-soft">{statusLine(s)}</span>
               </div>
-              <div className="mt-5 border-l-[3px] border-ink pl-4">
+              <div className="mt-5 border-t border-rule pt-3">
                 <p className="text-[14px] font-bold">Why it matters</p>
                 <p className="mt-1.5 text-[17px] font-medium leading-[25px]">{s.whyItMatters}</p>
               </div>

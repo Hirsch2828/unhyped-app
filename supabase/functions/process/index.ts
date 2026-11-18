@@ -3,7 +3,7 @@
 import { authorized, db, json } from '../_shared/db.ts'
 import { generateJSON, geminiModelInUse } from '../_shared/llm.ts'
 import { AREAS, CLUSTER_SYSTEM, ENRICH_SYSTEM, WRITE_SYSTEM, clusterPrompt, enrichPrompt, writePrompt } from '../_shared/prompts.ts'
-import { changeNote, clampImportance, labelFor, statusFor, type Label, type Tier } from '../_shared/rules.ts'
+import { changeNote, clampImportance, copyProblems, labelFor, statusFor, type Label, type Tier } from '../_shared/rules.ts'
 
 const MAX_ARTICLES = Number(Deno.env.get('MAX_ARTICLES') ?? 25)
 const MAX_WRITES = Number(Deno.env.get('MAX_WRITES') ?? 8)
@@ -134,9 +134,7 @@ Deno.serve(async (req) => {
     const ids = new Map(arts.map((a, i) => [`a${i + 1}`, a.id]))
 
     try {
-      const w = await generateJSON<Written>({
-        system: WRITE_SYSTEM,
-        prompt: writePrompt(
+      const prompt = writePrompt(
           story.topic,
           AREAS[story.topic],
           arts.map((a, i) => ({
@@ -148,8 +146,14 @@ Deno.serve(async (req) => {
             summary: a.summary,
             published: a.published_at,
           })),
-        ),
-      })
+        )
+      let w = await generateJSON<Written>({ system: WRITE_SYSTEM, prompt })
+      // Writing rules are checked by code. One rewrite with the problems listed; if it still fails, a person reviews it.
+      let problems = copyProblems({ ...w, title: clean(w.title), why_it_matters: clean(w.why_it_matters), dek: clean(w.dek) }, story.topic)
+      if (problems.length && timeLeft()) {
+        w = await generateJSON<Written>({ system: WRITE_SYSTEM, prompt: `${prompt}\n\nYour previous draft broke these rules. Rewrite it so none apply:\n- ${problems.join('\n- ')}` })
+        problems = copyProblems({ ...w, title: clean(w.title), why_it_matters: clean(w.why_it_matters), dek: clean(w.dek) }, story.topic)
+      }
 
       // Never publish an empty headline: fall back to the newest article's own title.
       const title = clean(w.title) || arts[arts.length - 1].title
@@ -160,7 +164,8 @@ Deno.serve(async (req) => {
       const importance = clampImportance(w.importance, label)
       const area = AREAS[story.topic].includes(w.area) ? w.area : null
       // A story already approved by the editor stays published when it gets new articles.
-      const status = story.status === 'published' ? 'published' : statusFor(importance, label)
+      const status = problems.length && story.status !== 'published' ? 'pending_review' : story.status === 'published' ? 'published' : statusFor(importance, label)
+      if (problems.length) log.push(`held ${story.id} for review: ${problems.join(' | ')}`)
       const image_id = story.image_id ?? (await pickImage(sb, story.topic, area))
 
       await sb.from('stories').update({

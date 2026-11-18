@@ -5,9 +5,10 @@ import type { Label, Source, SourceNote, Story, Topic } from '../data/types'
 
 import { SUPABASE_KEY, SUPABASE_URL } from './supabase'
 
-type Mode = 'loading' | 'live' | 'sample'
+type Mode = 'loading' | 'live' | 'sample' | 'error'
 // articles24h: how many articles we read in the last 24 hours (the "noise" on the issue cover).
-let state: { stories: Story[]; mode: Mode; articles24h: number | null } = { stories: sampleStories, mode: 'loading', articles24h: null }
+// Nothing is shown until live stories arrive: sample stories are for local development only, never presented as news.
+let state: { stories: Story[]; mode: Mode; articles24h: number | null } = { stories: [], mode: 'loading', articles24h: null }
 const listeners = new Set<() => void>()
 const set = (next: typeof state) => {
   state = next
@@ -15,7 +16,26 @@ const set = (next: typeof state) => {
 }
 
 export const getStories = () => state.stories
-export const findStory = (id: string) => state.stories.find((s) => s.id === id)
+export const findStory = (id: string) => state.stories.find((s) => s.id === id) ?? older.get(id)
+
+// Stories older than the 7-day window (saved long ago, or opened from a shared link). Kept apart so they
+// never leak into today's feed.
+const older = new Map<string, Story>()
+const asked = new Set<string>()
+export async function ensureStories(ids: string[]) {
+  const missing = ids.filter((id) => !findStory(id) && !asked.has(id) && /^[0-9a-f-]{36}$/.test(id))
+  if (!missing.length || state.mode === 'sample') return
+  missing.forEach((id) => asked.add(id))
+  try {
+    const q = new URLSearchParams({ select: SELECT, status: 'eq.published', id: `in.(${missing.join(',')})` })
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/stories?${q}`, { headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}` } })
+    if (!res.ok) return
+    for (const r of (await res.json()) as Row[]) older.set(r.id, toStory(r))
+    set({ ...state })
+  } catch {
+    /* offline: the page shows what it has */
+  }
+}
 
 export function useStories() {
   return useSyncExternalStore(
@@ -103,12 +123,25 @@ export function toStory(r: Row): Story {
   }
 }
 
+const SELECT =
+  'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,image_url,sources(name,tier)),hype_title,highlight,uncertain,source_notes,claims'
+
 export async function loadLive() {
+  if (state.mode === 'error') set({ ...state, mode: 'loading' })
+  // Dev only: `?fixture` loads a saved snapshot of live stories (public/__fixture.json, not committed).
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has('fixture')) {
+    const rows = (await (await fetch('/__fixture.json')).json()) as Row[]
+    // Shift times so the snapshot looks like it was taken just now.
+    const newest = Math.max(...rows.map((r) => new Date(r.last_article_at).getTime()))
+    const shift = Date.now() - newest - 3600_000
+    for (const r of rows) r.last_article_at = new Date(new Date(r.last_article_at).getTime() + shift).toISOString()
+    set({ stories: rows.map(toStory), mode: 'live', articles24h: 147 })
+    return
+  }
   try {
     const since = new Date(Date.now() - 7 * 24 * 3600_000).toISOString()
     const q = new URLSearchParams({
-      select:
-        'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,image_url,sources(name,tier)),hype_title,highlight,uncertain,source_notes,claims',
+      select: SELECT,
       status: 'eq.published',
       last_article_at: `gte.${since}`,
       order: 'last_article_at.desc',
@@ -120,10 +153,11 @@ export async function loadLive() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const rows = (await res.json()) as Row[]
     const articles24h = await countArticles()
-    if (rows.length) set({ stories: rows.map(toStory), mode: 'live', articles24h })
+    if (rows.length || !import.meta.env.DEV) set({ stories: rows.map(toStory), mode: 'live', articles24h })
     else set({ stories: sampleStories, mode: 'sample', articles24h: null })
   } catch {
-    set({ stories: sampleStories, mode: 'sample', articles24h: null })
+    if (import.meta.env.DEV) set({ stories: sampleStories, mode: 'sample', articles24h: null })
+    else set({ stories: [], mode: 'error', articles24h: null })
   }
 }
 
