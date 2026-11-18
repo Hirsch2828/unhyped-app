@@ -2,10 +2,93 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body { background: #F5F1E8; color: #1F1F1F; }
-body { -webkit-font-smoothing: antialiased; }
+/* "The Anti-Feed" tokens. Channels (r g b) so Tailwind can add opacity. */
+:root {
+  --paper: 242 240 232;   /* #F2F0E8 */
+  --paper-2: 232 229 218;
+  --paper-3: 218 215 203;
+  --ink: 23 24 21;        /* #171815 */
+  --grey-text: 92 95 87;  /* #5C5F57: small text, AA on paper */
+  --grey: 119 122 114;    /* #777A72: struck-through and decorative only */
+  --lime: #D6FF45;
+  --gutter: 24px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  color-scheme: light;
+}
+/* Evening: dark ink page, paper-coloured text. Lime stays. */
+.dark {
+  --paper: 23 24 21;
+  --paper-2: 34 36 31;
+  --paper-3: 48 50 44;
+  --ink: 242 240 232;
+  --grey-text: 172 175 164;
+  --grey: 128 131 121;
+  color-scheme: dark;
+}
+
+html, body { background: rgb(var(--paper)); color: rgb(var(--ink)); }
+html { transition: background-color 400ms var(--ease), color 400ms var(--ease); }
+body { -webkit-font-smoothing: antialiased; font-family: "Space Grotesk", Heebo, system-ui, sans-serif; font-size: 16px; line-height: 25px; }
+[dir='rtl'] body, [lang='he'] { font-family: Heebo, system-ui, sans-serif; letter-spacing: 0 !important; }
+
+@layer components {
+  /* Type scale: Space Grotesk, tight tracking. Mono for labels, time and numbers. */
+  .t-display { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 36px; line-height: 37px; font-weight: 700; letter-spacing: -0.035em; }
+  .t-h1 { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 28px; line-height: 30px; font-weight: 700; letter-spacing: -0.03em; }
+  .t-h2 { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 21px; line-height: 25px; font-weight: 700; letter-spacing: -0.02em; }
+  .t-card { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 19px; line-height: 23px; font-weight: 600; letter-spacing: -0.02em; }
+  .t-body { font-size: 16.5px; line-height: 25.5px; letter-spacing: -0.005em; }
+  .t-meta { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px; line-height: 17px; font-weight: 500; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
+  /* Desk names, section labels and small buttons: plain sans, not mono (redesign 2026-11-15). */
+  .t-eyebrow { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 14px; line-height: 18px; font-weight: 600; letter-spacing: -0.005em; }
+  /* Trust tags only: small mono capitals. */
+  .t-tag { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px; line-height: 14px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+  .t-section { font-family: "Space Grotesk", Heebo, sans-serif; font-size: 22px; line-height: 26px; font-weight: 700; letter-spacing: -0.02em; }
+
+  /* The highlighter: lime behind dark ink, never lime text. */
+  .mark { background: linear-gradient(transparent 12%, var(--lime) 12%, var(--lime) 92%, transparent 92%); color: #171815; padding: 0 2px; margin: 0 -2px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+
+  /* Rules */
+  .rule-strong { border-top: 2px solid rgb(var(--ink)); }
+
+  /* Press feedback for anything tappable */
+  .press { transition: opacity 120ms var(--ease), background-color 120ms var(--ease), color 120ms var(--ease); }
+  .press:active { opacity: 0.6; }
+
+  .fade-right { -webkit-mask-image: linear-gradient(to right, #000 85%, transparent); mask-image: linear-gradient(to right, #000 85%, transparent); }
+}
+
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
 .pb-safe { padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem); }
-.fade-in { animation: fade .35s ease both; }
-@keyframes fade { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: none; } }
+.skeleton { background: rgb(var(--ink) / 0.07); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { background: rgb(var(--ink) / 0.12); } }
+::selection { background: var(--lime); color: #171815; }
+.tnum { font-variant-numeric: tabular-nums; }
+.onum { font-variant-numeric: oldstyle-nums; }
+
+.fade-in { animation: rise 160ms var(--ease) both; }
+@keyframes rise { from { opacity: 0; } to { opacity: 1; } }
+
+/* One treatment for every photo and illustration: warm black and white. */
+.photo { background: #171815; overflow: hidden; position: relative; }
+.photo img { display: block; width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) sepia(.22) contrast(1.06); transition: transform 600ms var(--ease); }
+a:hover .photo img { transform: scale(1.02); }
+
+/* Halftone field used by story plates */
+.halftone { background-image: radial-gradient(rgb(var(--ink) / 0.9) 0.9px, transparent 1.2px); background-size: 6px 6px; }
+
+/* Noise -> signal: struck headlines fade out, the count settles */
+.noise-line { animation: noise-out 1100ms var(--ease) both; }
+@keyframes noise-out { 0% { opacity: 0; transform: translateY(6px); } 25% { opacity: 1; transform: none; } 70% { opacity: 1; } 100% { opacity: 0.35; } }
+.signal-in { animation: signal-in 500ms var(--ease) 900ms both; }
+@keyframes signal-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+.strike-draw { background: linear-gradient(currentColor, currentColor) no-repeat 0 55% / 0 2px; animation: strike 500ms var(--ease) 350ms forwards; }
+@keyframes strike { to { background-size: 100% 2px; } }
+
+:focus-visible { outline: 3px solid rgb(var(--ink)); outline-offset: 2px; box-shadow: 0 0 0 2px var(--lime); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+  .press:active { opacity: 1; }
+}

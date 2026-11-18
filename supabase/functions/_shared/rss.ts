@@ -5,6 +5,7 @@ export interface FeedItem {
   title: string
   summary: string
   publishedAt: string | null
+  image: string | null
 }
 
 const decode = (s: string) =>
@@ -31,6 +32,39 @@ const tag = (block: string, name: string) => {
   return m ? m[1] : ''
 }
 
+// The article's lead image, if the feed carries one: media:content / media:thumbnail,
+// an image enclosure, or the first <img> inside the description or content.
+const attr = (el: string, name: string) => decode(el.match(new RegExp(`\\s${name}=["']([^"']+)["']`, 'i'))?.[1] ?? '')
+const isHttp = (u: string) => /^https?:\/\//i.test(u)
+export function findImage(block: string): string | null {
+  const media = block.match(/<media:(?:content|thumbnail)\b[^>]*>/gi) ?? []
+  // Prefer the widest media:content that is an image.
+  let best = ''
+  let bestW = -1
+  for (const el of media) {
+    const url = attr(el, 'url')
+    const type = attr(el, 'type') || attr(el, 'medium')
+    if (!isHttp(url) || (type && !/image/i.test(type))) continue
+    const w = Number(attr(el, 'width')) || 0
+    if (w > bestW) (best = url), (bestW = w)
+  }
+  if (best) return best
+  for (const el of block.match(/<enclosure\b[^>]*>/gi) ?? []) {
+    const url = attr(el, 'url')
+    if (isHttp(url) && /image/i.test(attr(el, 'type') || url)) return url
+  }
+  const html = decode(tag(block, 'content:encoded') + ' ' + tag(block, 'description') + ' ' + tag(block, 'content') + ' ' + tag(block, 'summary'))
+  for (const el of html.match(/<img\b[^>]*>/gi) ?? []) {
+    const url = attr(el, 'src')
+    // Skip tracking pixels and tiny icons.
+    if (!isHttp(url) || /pixel|feedburner|gravatar|emoji|\.gif(\?|$)/i.test(url)) continue
+    const w = Number(attr(el, 'width'))
+    if (w && w < 200) continue
+    return url
+  }
+  return null
+}
+
 const toIso = (s: string) => {
   const d = new Date(decode(s).trim())
   return isNaN(d.getTime()) ? null : d.toISOString()
@@ -48,6 +82,7 @@ export function parseFeed(xml: string, maxItems = 30): FeedItem[] {
       title,
       summary: stripHtml(tag(b, 'description') || tag(b, 'content:encoded')).slice(0, 1200),
       publishedAt: toIso(tag(b, 'pubDate') || tag(b, 'dc:date')),
+      image: findImage(b),
     })
   }
   if (items.length === 0) {
@@ -62,6 +97,7 @@ export function parseFeed(xml: string, maxItems = 30): FeedItem[] {
         title,
         summary: stripHtml(tag(b, 'summary') || tag(b, 'content')).slice(0, 1200),
         publishedAt: toIso(tag(b, 'published') || tag(b, 'updated')),
+        image: findImage(b),
       })
     }
   }

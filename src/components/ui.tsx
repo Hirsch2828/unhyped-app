@@ -1,76 +1,275 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ArrowRight, BarChart3, BatteryCharging, Bookmark, BookmarkCheck, Bot, Car, Check as CheckIcon, Circle, Clock, Cpu, Database,
-  Factory, FileText, FlaskConical, HelpCircle, Landmark, List, Navigation, ShieldCheck, Sparkles, Sun, TrendingUp, Wind, Wrench, Zap,
+  ArrowRight, BarChart3, BatteryCharging, Bookmark, BrainCircuit, BookmarkCheck, Bot, Car, Check as CheckIcon, Circle, Cpu, Database,
+  Factory, FileText, FlaskConical, Landmark, List, Navigation, Sparkles, Sun, TrendingUp, Wind, Wrench, Zap,
   type LucideProps,
 } from 'lucide-react'
-
-const iconMap: Record<string, React.ComponentType<LucideProps>> = {
-  BarChart3, BatteryCharging, Bot, Car, Cpu, Database, Factory, FileText, FlaskConical, Landmark, List, Navigation, Sparkles, Sun,
-  TrendingUp, Wind, Wrench, Zap,
-}
 import type { Label, Story, Topic } from '../data/types'
-import { topicInfo } from '../data/topics'
+import { areas, topicInfo } from '../data/topics'
 import { timeAgo } from '../lib/feed'
 import { usePrefs } from '../lib/prefs'
+
+const iconMap: Record<string, React.ComponentType<LucideProps>> = {
+  BrainCircuit, BarChart3, BatteryCharging, Bot, Car, Cpu, Database, Factory, FileText, FlaskConical, Landmark, List, Navigation, Sparkles, Sun,
+  TrendingUp, Wind, Wrench, Zap,
+}
 
 export function Icon({ name, ...rest }: { name: string } & LucideProps) {
   const C = iconMap[name] ?? Circle
   return <C {...rest} />
 }
 
-const labelInfo: Record<Label, { text: string; conf: string; hint: string; icon: typeof ShieldCheck; cls: string }> = {
-  official: { text: 'Official', conf: 'High confidence', hint: 'Confirmed by the company, a regulator, or a published paper.', icon: ShieldCheck, cls: 'text-forest' },
-  report: { text: 'Report', conf: 'Likely', hint: 'Reported by credible outlets. Not yet confirmed.', icon: FileText, cls: 'text-terra-600' },
-  rumor: { text: 'Rumor', conf: 'Unconfirmed', hint: 'Unverified. Shown so you know not to take it as fact.', icon: HelpCircle, cls: 'text-honey' },
+export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+
+/* ---------- Trust labels ---------- */
+
+const labelInfo: Record<Label, { text: string; hint: string }> = {
+  official: { text: 'Official', hint: 'Confirmed by the company, a regulator, or a published paper.' },
+  report: { text: 'Report', hint: 'Reported by credible outlets. Not yet confirmed.' },
+  rumor: { text: 'Rumor', hint: 'Unverified. Shown so you know not to take it as fact.' },
 }
 export const labelHint = (l: Label) => labelInfo[l].hint
 
-export function LabelTag({ label, light = false }: { label: Label; light?: boolean }) {
+// Shape carries the meaning, so colour is never the only cue:
+// Official = filled ink tag, Report = outlined tag, Rumor = dashed outline.
+function Tag({ label, light }: { label: Label; light?: boolean }) {
+  const ink = light ? 'border-paper text-paper' : 'border-ink text-ink'
+  const cls = {
+    official: light ? 'border border-paper bg-paper text-ink' : 'border border-ink bg-ink text-paper',
+    report: `border ${ink}`,
+    rumor: `border border-dashed ${ink}`,
+  }[label]
+  return <span className={`t-tag inline-flex h-[20px] items-center px-1.5 leading-none ${cls}`}>{labelInfo[label].text}</span>
+}
+
+// Trust label shown the same way everywhere. With `explain`, a tap opens the plain-language meaning.
+export function TrustMark({ label, light = false, explain = false }: { label: Label; light?: boolean; explain?: boolean }) {
   const L = labelInfo[label]
-  const I = L.icon
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: Event) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false)
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [open])
+  if (!explain)
+    return (
+      <span className="inline-flex" title={L.hint}>
+        <Tag label={label} light={light} />
+      </span>
+    )
   return (
-    <span className={`inline-flex items-center gap-1 ${light ? 'text-sand-50' : L.cls}`} title={L.hint}>
-      <I className="h-3.5 w-3.5" strokeWidth={2} />
-      {L.text}
+    <span ref={ref} className="relative inline-flex">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setOpen((o) => !o)
+        }}
+        aria-expanded={open}
+        aria-label={`${L.text}: what does this mean?`}
+        className="relative inline-flex items-center gap-1 before:absolute before:-inset-[14px] before:content-['']"
+      >
+        <Tag label={label} light={light} />
+        <span aria-hidden className="t-meta text-ink-soft">?</span>
+      </button>
+      {open && (
+        <span role="tooltip" className="fade-in absolute left-0 top-full z-40 mt-2 w-64 border border-ink bg-paper px-3.5 py-3 text-[13px] font-normal normal-case leading-5 tracking-normal text-ink">
+          <span className="mb-1.5 block"><Tag label={label} /></span>
+          {L.hint}
+        </span>
+      )}
     </span>
   )
 }
 
-export function MetaRow({ story, light = false }: { story: Story; light?: boolean }) {
+/** Back-compat name used by the editor. */
+export function LabelTag({ label, light = false }: { label: Label; light?: boolean }) {
+  return <TrustMark label={label} light={light} />
+}
+
+/** time · trust mark, in meta style */
+export function MetaRow({ story, light = false, explain = false, read = false }: { story: Story; light?: boolean; explain?: boolean; read?: boolean }) {
   return (
-    <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-xs ${light ? 'text-sand-200' : 'text-charcoal-400'}`}>
-      <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{timeAgo(story.hoursAgo)}</span>
+    <div className={`t-meta flex flex-wrap items-center gap-x-2 gap-y-1 ${light ? 'text-paper/85' : 'text-ink-soft'}`}>
+      <TrustMark label={story.label} light={light} explain={explain} />
+      <span>{timeAgo(story.hoursAgo)}</span>
       <span aria-hidden>·</span>
-      <LabelTag label={story.label} light={light} />
-      <span aria-hidden>·</span>
-      <span>{story.mergedCount} sources → 1 story</span>
+      <span>{plural(story.sources.length || story.mergedCount, 'source')}</span>
+      {read && (
+        <>
+          <span aria-hidden>·</span>
+          <span>Read</span>
+        </>
+      )}
     </div>
   )
 }
 
-const topicTone: Record<Topic, string> = {
-  ai: 'bg-sage-100 text-forest',
-  tesla: 'bg-terra-100 text-terra-600',
-  robotics: 'bg-sage-100 text-forest',
-  chips: 'bg-sand-200 text-charcoal-500',
-  energy: 'bg-sage-100 text-forest',
-  markets: 'bg-honey-100 text-honey',
+/* ---------- Categories ---------- */
+
+const topicIcon: Record<Topic, string> = {
+  ai: 'BrainCircuit', tesla: 'Car', robotics: 'Bot', chips: 'Cpu', energy: 'Zap', markets: 'TrendingUp',
+}
+export function categoryOf(id: string): { name: string; icon: string } | null {
+  if (id in topicInfo) return { name: topicInfo[id as Topic].name, icon: topicIcon[id as Topic] }
+  for (const list of Object.values(areas)) {
+    const a = list.find((x) => x.id === id)
+    if (a) return { name: a.name, icon: a.icon }
+  }
+  return null
+}
+export function categoryName(story: Pick<Story, 'topic' | 'area'>) {
+  const c = categoryOf(story.area) ?? categoryOf(story.topic)!
+  return story.topic === 'tesla' && story.area ? `Tesla · ${c.name}` : c.name
+}
+
+// Desk line in mono: "AI · POLICY", "TESLA · FSD & AUTONOMY". No icons in the new style.
+export function CategoryBadge({ story, className = '', light = false }: { story: Pick<Story, 'topic' | 'area'>; className?: string; light?: boolean }) {
+  const c = categoryOf(story.area)
+  const desk = c && story.area ? `${topicInfo[story.topic].name} · ${c.name}` : topicInfo[story.topic].name
+  return <span className={`t-eyebrow inline-block ${light ? 'text-paper/85' : 'text-ink-soft'} ${className}`}>{desk}</span>
 }
 
 export function TopicPill({ topic }: { topic: Topic }) {
+  return <span className="t-eyebrow text-ink-soft">{topicInfo[topic].name}</span>
+}
+
+/* ---------- Plates (no photography) ---------- */
+
+export function Img({ src, className = '', alt = '' }: { src: string; className?: string; alt?: string }) {
+  return <img src={src} alt={alt} loading="lazy" decoding="async" className={`bg-paper-2 object-cover ${className}`} />
+}
+
+// Kept so pages that wrap content in an image scope still work. Plates are unique per story, so nothing is deduped.
+export function ImageScope({ children }: { children: React.ReactNode }) {
+  return <>{children}</>
+}
+
+const areaGlyph: Record<string, string> = {
+  policy: '§', business: '$', models: '∆', agents: '⇄', tools: '⌘', research: '∴', infrastructure: '▦',
+  vehicles: '▭', fsd: '◎', optimus: '⊕', 'tesla-energy': 'ϟ', earnings: '±', markets: '±',
+}
+
+// One glyph taken from the story itself: a number from the headline when there is one,
+// "?" for an unconfirmed claim, otherwise the sign of its desk.
+export function glyphFor(story: Pick<Story, 'title' | 'label' | 'area' | 'topic'>) {
+  if (story.label === 'rumor') return '?'
+  const money = story.title.match(/\$\s?(\d+(?:[.,]\d+)?)\s?(trillion|billion|million|tn|bn|[TBM])\b/i)
+  if (money) {
+    const unit = money[2].toLowerCase()
+    return `$${money[1]}${unit.startsWith('t') ? 'T' : unit.startsWith('b') ? 'B' : 'M'}`
+  }
+  const pct = story.title.match(/[-−+]?\d+(?:\.\d+)?%/)
+  if (pct) return pct[0].replace('-', '−')
+  const ver = story.title.match(/\b\d+\.\d+\b/)
+  if (ver) return ver[0]
+  return areaGlyph[story.area] ?? (story.topic === 'tesla' ? 'T' : '◇')
+}
+
+// Generated plate: a halftone field and one glyph from the story's own world. Never decorative, never missing.
+export function Plate({ story, size = 'md', className = '' }: { story: Pick<Story, 'title' | 'label' | 'area' | 'topic'>; size?: 'sm' | 'md' | 'lg'; className?: string }) {
+  const g = glyphFor(story)
+  const long = g.length > 3
+  const fs = size === 'sm' ? (long ? 18 : 30) : size === 'lg' ? (long ? 76 : 120) : long ? 52 : 84
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${topicTone[topic]}`}>
-      {topicInfo[topic].name}
+    <div aria-hidden className={`relative overflow-hidden border border-ink bg-paper ${className}`}>
+      <div className="halftone absolute inset-0 opacity-[0.16] [mask-image:linear-gradient(115deg,transparent_25%,#000_95%)]" />
+      <span
+        className="absolute bottom-[6%] right-[7%] font-bold leading-none tracking-[-0.06em] text-ink"
+        style={{ fontSize: fs }}
+      >
+        {g}
+      </span>
+      {size !== 'sm' && <span className="t-eyebrow absolute left-3 top-2.5 text-ink-soft">{topicInfo[story.topic].name}</span>}
+    </div>
+  )
+}
+
+/** A real photo or the story's own illustration exists (otherwise only the typographic plate). */
+export const hasPicture = (s: Pick<Story, 'photo' | 'ownImage'>) => !!s.photo || !!s.ownImage
+
+type PhotoStory = Pick<Story, 'id' | 'image' | 'illustration' | 'title' | 'topic' | 'area' | 'ownImage' | 'label' | 'photo' | 'photoCredit'>
+
+// The story's picture, in one warm black-and-white treatment. Order: a real photo from the sources,
+// then the story's own AI illustration, then the typographic plate. `credit` shows who it comes from.
+export function Photo({
+  story,
+  className = '',
+  credit = false,
+  size = 'md',
+  eager = false,
+}: {
+  story: PhotoStory
+  className?: string
+  credit?: boolean
+  size?: 'sm' | 'md' | 'lg'
+  eager?: boolean
+}) {
+  // Try the real photo, then the illustration, then fall back to the plate if both fail to load.
+  const options = [story.photo ? 'photo' : null, story.ownImage ? 'image' : null].filter(Boolean) as ('photo' | 'image')[]
+  const [failed, setFailed] = useState(0)
+  const kind = options[failed]
+  if (!kind) return <Plate story={story} size={size} className={className} />
+  const real = kind === 'photo'
+  const src = real ? story.photo! : story.image
+  return (
+    <div className={`photo ${className}`}>
+      <img
+        src={src}
+        alt=""
+        loading={eager ? 'eager' : 'lazy'}
+        decoding="async"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed((f) => f + 1)}
+      />
+      {credit && (
+        <span className="t-meta absolute bottom-0 left-0 max-w-[85%] truncate bg-paper px-2 py-1 text-ink-soft">
+          {real ? `Photo: ${story.photoCredit ?? 'source'}` : 'Illustration · AI'}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// Old name, kept so every page keeps working.
+export function StoryImg({
+  story,
+  className = '',
+  mini = false,
+  size,
+}: {
+  story: PhotoStory
+  className?: string
+  imgClassName?: string
+  mini?: boolean
+  size?: 'sm' | 'md' | 'lg'
+  badgeTop?: boolean
+}) {
+  return <Photo story={story} size={size ?? (mini ? 'sm' : 'md')} className={className} />
+}
+
+// Headline with the one phrase that carries the news under the lime highlighter.
+// Only one highlighter per screen (the lead, the story page, a brief card), so it keeps its meaning.
+export function Headline({ story, className = '', mark = false }: { story: Pick<Story, 'title' | 'highlight'>; className?: string; mark?: boolean }) {
+  const hl = mark ? story.highlight : null
+  const i = hl ? story.title.indexOf(hl) : -1
+  if (!hl || i < 0) return <span className={className}>{story.title}</span>
+  return (
+    <span className={className}>
+      {story.title.slice(0, i)}
+      <span className="mark">{hl}</span>
+      {story.title.slice(i + hl.length)}
     </span>
   )
 }
 
-export function Img({ src, className = '', alt = '' }: { src: string; className?: string; alt?: string }) {
-  return <img src={src} alt={alt} loading="lazy" className={`object-cover ${className}`} />
-}
+/* ---------- Actions ---------- */
 
-export function SaveButton({ story, onSaved, className = '' }: { story: Story; onSaved?: () => void; className?: string }) {
+export function SaveButton({ story, onSaved, className = '', light = false }: { story: Story; onSaved?: () => void; className?: string; light?: boolean }) {
   const { prefs, toggleSave } = usePrefs()
   const saved = prefs.saved.includes(story.id)
   return (
@@ -82,61 +281,107 @@ export function SaveButton({ story, onSaved, className = '' }: { story: Story; o
       }}
       aria-pressed={saved}
       aria-label={saved ? 'Remove from saved' : 'Save story'}
-      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full transition hover:bg-sand-200 ${saved ? 'text-terra' : 'text-charcoal-500'} ${className}`}
+      className={`press grid h-11 w-11 shrink-0 place-items-center ${saved ? 'text-ink' : light ? 'text-paper' : 'text-ink-soft hover:text-ink'} ${className}`}
     >
-      {saved ? <BookmarkCheck className="h-5 w-5" /> : <Bookmark className="h-5 w-5" />}
+      {saved ? <BookmarkCheck className="h-[18px] w-[18px]" fill="currentColor" strokeWidth={1.75} /> : <Bookmark className="h-[18px] w-[18px]" strokeWidth={1.75} />}
     </button>
   )
 }
 
-export function StoryCard({ story }: { story: Story }) {
+/* ---------- Story layouts ---------- */
+
+// Card: picture, desk, headline, meta. On a phone it turns into a row with the picture on the right. Read stories fade.
+export function StoryCard({ story, wide = false, rowOnPhone = false }: { story: Story; wide?: boolean; rowOnPhone?: boolean }) {
+  const { prefs } = usePrefs()
+  const read = prefs.read.includes(story.id)
   return (
     <Link
       to={`/story/${story.id}`}
-      className="group flex w-[78vw] max-w-[320px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-sand-300/70 bg-sand-50 shadow-card transition hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-forest sm:w-[300px]"
+      className={`press group flex ${rowOnPhone ? 'flex-row-reverse items-start gap-4 border-t border-rule py-4 sm:flex-col sm:gap-0 sm:border-0 sm:py-0' : 'flex-col'} ${wide || rowOnPhone ? 'w-full' : 'w-[70vw] max-w-[280px] shrink-0 snap-start sm:w-[280px]'} `}
     >
-      <div className="overflow-hidden">
-        <Img src={story.image} className="h-36 w-full transition duration-500 group-hover:scale-[1.04]" />
-      </div>
-      <div className="flex flex-1 flex-col p-4">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="line-clamp-2 text-[1.05rem] font-semibold leading-snug text-charcoal">{story.title}</h3>
-          <SaveButton story={story} className="-mr-2 -mt-1" />
-        </div>
-        <p className="mt-1 line-clamp-2 text-sm text-charcoal-500">{story.dek}</p>
-        <div className="mt-auto pt-3">
-          <MetaRow story={story} />
-        </div>
-      </div>
+      <Photo story={story} className={`${rowOnPhone ? 'h-24 w-24 shrink-0 sm:h-auto sm:w-full' : 'w-full'} sm:aspect-[3/2] ${rowOnPhone ? '' : 'aspect-[3/2]'}`} />
+      <span className="min-w-0 flex-1">
+        <CategoryBadge story={story} className={rowOnPhone ? 'sm:mt-3' : 'mt-3'} />
+        <h3 className={`mt-1 text-[18px] font-semibold leading-[22px] tracking-[-0.015em] ${read ? 'text-ink-soft' : 'text-ink'} group-hover:underline group-hover:decoration-2 group-hover:underline-offset-4 sm:text-[21px] sm:font-bold sm:leading-[25px]`}>
+          <Headline story={story} />
+        </h3>
+        <span className="mt-2 flex items-center justify-between">
+          <MetaRow story={story} read={read} />
+          <SaveButton story={story} className="-my-3 -mr-3 hidden sm:grid" />
+        </span>
+      </span>
     </Link>
   )
 }
 
-export function SectionHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
+// Compact text row with a hairline above. `lead` is an optional left column (a numeral or a time).
+export function CompactRow({ story, lead, thumb = false }: { story: Story; lead?: React.ReactNode; thumb?: boolean }) {
+  const { prefs } = usePrefs()
+  const read = prefs.read.includes(story.id)
   return (
-    <div className="mb-3 flex items-end justify-between gap-4 px-4 sm:px-8">
-      <div className="flex flex-wrap items-baseline gap-x-3">
-        <h2 className="font-serif text-2xl text-charcoal">{title}</h2>
-        {subtitle && <span className="text-sm text-charcoal-400">{subtitle}</span>}
+    <Link to={`/story/${story.id}`} className="press group flex gap-4 border-t border-rule py-4">
+      {lead}
+      {thumb && hasPicture(story) && <Photo story={story} size="sm" className="h-[72px] w-[96px] shrink-0 sm:h-20 sm:w-[120px]" />}
+      <span className="min-w-0 flex-1">
+        <CategoryBadge story={story} />
+        <span className={`mt-1 block text-[18px] font-semibold leading-[22px] tracking-[-0.015em] ${read ? 'text-ink-soft' : 'text-ink'} group-hover:underline group-hover:underline-offset-4 sm:text-[19px] sm:leading-[24px]`}>
+          <Headline story={story} />
+        </span>
+        <span className="mt-2 block">
+          <MetaRow story={story} read={read} />
+        </span>
+      </span>
+    </Link>
+  )
+}
+
+export function SectionHeader({ title, meta, seeAll }: { title: string; meta?: string; seeAll?: string; subtitle?: string }) {
+  return (
+    <div className="mb-3 px-6 sm:px-8">
+      <div className="rule-strong flex items-baseline justify-between gap-4 pt-3">
+        <h2 className="t-section text-ink">{title}</h2>
+        {seeAll && (
+          <Link to={seeAll} className="t-eyebrow -my-3 inline-flex min-h-[44px] shrink-0 items-center gap-1 text-ink-soft hover:text-ink">
+            See all <ArrowRight className="h-3 w-3" />
+          </Link>
+        )}
       </div>
-      {action}
+      {meta && <p className="mt-1 text-[15px] text-ink-soft">{meta}</p>}
     </div>
   )
 }
 
-export function Row({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+export function Row({
+  title,
+  subtitle,
+  seeAll,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  seeAll?: string
+  children: React.ReactNode
+}) {
   return (
-    <section className="fade-in">
-      <SectionHeader title={title} subtitle={subtitle} />
-      <div className="no-scrollbar flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-4 px-4 pb-4 pt-1 sm:scroll-px-8 sm:px-8">
+    <section>
+      <SectionHeader title={title} meta={subtitle} seeAll={seeAll} />
+      <div className="no-scrollbar flex snap-x snap-mandatory items-start gap-5 overflow-x-auto scroll-px-6 px-6 pb-1 sm:scroll-px-8 sm:px-8">
         {children}
       </div>
     </section>
   )
 }
 
+/* ---------- Basics ---------- */
+
+// Word mark with a lime full stop.
 export function Logo({ className = '' }: { className?: string }) {
-  return <span className={`font-serif text-[1.65rem] font-semibold tracking-tight text-charcoal ${className}`}>Unhyped</span>
+  return (
+    <span className={`inline-flex items-baseline text-[24px] font-bold leading-none tracking-[-0.05em] text-ink ${className}`}>
+      Unhyped
+      <span aria-hidden className="ml-[2px] inline-block h-[7px] w-[7px] bg-lime ring-1 ring-ink/80" />
+    </span>
+  )
 }
 
 export function Button({
@@ -146,11 +391,11 @@ export function Button({
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'terra' }) {
   const base =
-    'inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-[0.95rem] font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-forest focus-visible:ring-offset-2 disabled:opacity-40'
+    'press inline-flex min-h-[48px] items-center justify-center gap-2 px-6 py-3 text-[15px] font-semibold tracking-[-0.01em] disabled:opacity-40'
   const v = {
-    primary: 'bg-forest text-sand-50 hover:bg-forest-600',
-    secondary: 'border border-sand-300 bg-sand-50 text-charcoal hover:bg-sand-200',
-    terra: 'bg-terra text-white hover:bg-terra-600 rounded-full',
+    primary: 'bg-ink text-paper hover:bg-ink/85',
+    secondary: 'border border-ink bg-transparent text-ink hover:bg-paper-2',
+    terra: 'bg-lime text-lime-ink hover:brightness-95',
   }[variant]
   return (
     <button className={`${base} ${v} ${className}`} {...rest}>
@@ -159,21 +404,20 @@ export function Button({
   )
 }
 
+// One check style everywhere: a filled ink square with a check when on, an outlined square when off.
 export function Check({ on, dark = false }: { on: boolean; dark?: boolean }) {
   return on ? (
-    <span className="grid h-6 w-6 place-items-center rounded-full bg-forest text-sand-50 ring-2 ring-sand-50/70">
+    <span className="grid h-6 w-6 shrink-0 place-items-center bg-ink text-paper">
       <CheckIcon className="h-3.5 w-3.5" strokeWidth={3} />
     </span>
   ) : (
-    <span className={`h-6 w-6 rounded-full border-2 ${dark ? 'border-white/90' : 'border-sand-300 bg-sand-50'}`} />
+    <span className={`block h-6 w-6 shrink-0 border-[1.5px] ${dark ? 'border-paper/90' : 'border-ink/40'}`} />
   )
 }
 
 export function ArrowCircle({ dark = false }: { dark?: boolean }) {
   return (
-    <span
-      className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border transition ${dark ? 'border-white/40 bg-white/10 text-white' : 'border-sand-300 text-charcoal group-hover:bg-sand-200'}`}
-    >
+    <span className={`grid h-11 w-11 shrink-0 place-items-center border ${dark ? 'border-paper/50 text-paper' : 'border-ink text-ink group-hover:bg-paper-2'}`}>
       <ArrowRight className="h-5 w-5" />
     </span>
   )

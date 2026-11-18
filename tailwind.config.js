@@ -1,22 +1,36 @@
 /** @type {import('tailwindcss').Config} */
+// "The Anti-Feed" design tokens (Milestone 5c). Colours come from CSS variables in index.css,
+// so evening mode only swaps the variables. Old token names (sand, forest, charcoal...) are kept
+// as aliases so every screen picks up the new palette.
+const v = (name) => `rgb(var(--${name}) / <alpha-value>)`
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        forest: { DEFAULT: '#2E3A2F', 600: '#3a4a3b', 700: '#26302a' },
-        sage: { DEFAULT: '#66705A', 100: '#e9ebe2', 200: '#d6dacb' },
-        olive: { DEFAULT: '#A7B08D' },
-        sand: { DEFAULT: '#F5F1E8', 50: '#FBF9F4', 200: '#ECE6D9', 300: '#E0D8C7' },
-        terra: { DEFAULT: '#D77B5A', 600: '#c4643f', 100: '#f7e3da' },
-        charcoal: { DEFAULT: '#1F1F1F', 500: '#55524b', 400: '#7c776c' },
-        honey: { DEFAULT: '#c99a2e', 100: '#f6ecd2' },
+        paper: { DEFAULT: v('paper'), 2: v('paper-2'), 3: v('paper-3') },
+        ink: { DEFAULT: v('ink'), soft: v('grey-text'), faint: v('grey') },
+        lime: { DEFAULT: '#D6FF45', ink: '#171815' },
+        // Aliases from the previous palette
+        forest: { DEFAULT: v('ink'), 600: v('ink'), 700: v('ink') },
+        sage: { DEFAULT: v('grey'), ink: v('grey-text'), 100: v('paper-2'), 200: v('paper-3') },
+        olive: { DEFAULT: v('grey'), ink: v('grey-text'), 100: v('paper-2'), 200: v('paper-3') },
+        sand: { DEFAULT: v('paper'), 50: v('paper'), 200: v('paper-2'), 300: v('paper-3') },
+        terra: { DEFAULT: v('ink'), ink: v('ink'), 600: v('ink'), 100: v('paper-2') },
+        charcoal: { DEFAULT: v('ink'), 500: v('grey-text'), 400: v('grey-text') },
+        honey: { DEFAULT: v('grey'), ink: v('grey-text'), 100: v('paper-2') },
+        rule: 'rgb(var(--ink) / 0.16)',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        serif: ['"Playfair Display"', 'Georgia', 'serif'],
+        sans: ['"Space Grotesk"', 'Heebo', 'system-ui', 'sans-serif'],
+        serif: ['"Space Grotesk"', 'Heebo', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
       },
-      boxShadow: { card: '0 1px 2px rgba(31,31,31,.04), 0 8px 24px -16px rgba(31,31,31,.18)' },
+      borderRadius: { none: '0', full: '0', sm: '0', DEFAULT: '0', md: '0', lg: '0', xl: '0', '2xl': '0', '3xl': '0', media: '0', card: '0' },
+      boxShadow: { soft: 'none', card: 'none' },
+      transitionDuration: { DEFAULT: '120ms' },
+      transitionTimingFunction: { DEFAULT: 'cubic-bezier(0.2, 0.7, 0.2, 1)' },
     },
   },
   plugins: [],

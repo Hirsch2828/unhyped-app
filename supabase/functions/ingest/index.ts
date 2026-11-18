@@ -46,12 +46,19 @@ Deno.serve(async (req) => {
             summary: i.summary,
             published_at: i.publishedAt,
             topic: s.topic,
+            image_url: i.image?.slice(0, 1000) ?? null,
           }))
         if (items.length) {
           const { error: insErr, count } = await sb
             .from('articles')
             .upsert(items, { onConflict: 'url', ignoreDuplicates: true, count: 'exact' })
           if (insErr) throw new Error(insErr.message)
+          // Backfill the photo on articles we stored before we kept images.
+          await Promise.all(
+            items
+              .filter((i) => i.image_url)
+              .map((i) => sb.from('articles').update({ image_url: i.image_url }).eq('url', i.url).is('image_url', null)),
+          )
           report[s.name] = count ?? items.length
         } else report[s.name] = 0
         await sb.from('sources').update({ last_fetched_at: new Date().toISOString(), last_error: null, fail_count: 0 }).eq('id', s.id)

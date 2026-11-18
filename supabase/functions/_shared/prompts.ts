@@ -31,6 +31,10 @@ Three hard rules:
 2. Never raise certainty. If sources say "reportedly" or "according to people familiar", say so. If only social posts or forums support it, write plainly that no company or credible outlet has confirmed it.
 3. No predictions and no investment advice. Never say buy, sell, bullish, bearish, "will rise", price targets. For markets, state only what moved and by how much, if the articles say so. If the articles do not link a price move to the event, market_reaction is "No clear market move linked to this." For non-Tesla stories, market_reaction is null.
 
+Style rules (checked by code before publishing):
+- Title: sentence case (capitalise only the first word and names), under 80 characters, no hype words (revolutionary, game-changer, groundbreaking, unprecedented, massive, huge, shocking...).
+- why_it_matters: at most 2 sentences. Say who is affected and how, using something concrete from the articles (a price, a date, a number, a group of users). Never generic lines like "This highlights the growing importance of AI" or "could shift the direction of the industry".
+
 Article ids go ONLY in "claims". Never put ids like [a1] in the title, dek, takeaways or other text.
 Reply with JSON only.`
 
@@ -44,16 +48,16 @@ Allowed areas: ${areas.join(', ')}
 
 Articles:
 ${articles
-  .map((a) => `[${a.id}] ${a.source} (${a.tier}) ${a.published ?? ''}\nTitle: ${a.title}\nText: ${a.summary.slice(0, 900)}`)
+  .map((a) => `[${a.id}] ${a.source} (${a.tier}) ${a.published ?? ''}\nTitle: ${a.title}\nText: ${a.summary.slice(0, 1500)}`)
   .join('\n\n')}
 
 Return:
 {
-  "title": "max 12 words, factual, no hype",
+  "title": "max 12 words, under 80 characters, sentence case, factual, no hype",
   "dek": "one sentence",
   "takeaways": ["2 to 4 short points: only what changed"],
-  "why_it_matters": "1-2 sentences, what this means for the reader",
-  "what_happened": "short paragraph of facts",
+  "why_it_matters": "1-2 sentences: who is affected and how, with one concrete detail from the articles",
+  "what_happened": "2 paragraphs separated by a blank line, about 120-170 words in total: who did what, when, the numbers, and the background the articles give. Facts from the articles only. If the articles hold fewer facts, write less; never pad, guess or repeat the takeaways.",
   "claims": [{"text": "...", "article_ids": ["a1"]}],
   "importance": 1 | 2 | 3,
   "area": "one of the allowed areas",
@@ -65,4 +69,28 @@ Importance: 3 = everyone following ${topic === 'tesla' ? 'Tesla' : 'AI'} must kn
 export const AREAS: Record<string, string[]> = {
   ai: ['agents', 'models', 'tools', 'research', 'business', 'policy', 'infrastructure'],
   tesla: ['vehicles', 'fsd', 'optimus', 'energy', 'earnings', 'markets'],
+}
+
+// Second, light pass over a finished story: picks things the UI shows around the story.
+// It never writes new facts: the hype headline is chosen from the given titles, the highlight is copied from our title.
+export const ENRICH_SYSTEM = `You annotate a finished story for Unhyped, a calm news app.
+Hard rules:
+- hype: pick the ONE source headline below that is the most sensational (alarmist words, ALL CAPS, "changes everything", "explosive", "shock", exaggeration, loaded emotion). Return its id. If every headline is calm and factual, return null. Never rewrite a headline.
+- highlight: copy 1 to 4 consecutive words EXACTLY from our title that carry the news (a number, a date, the key action). Copy them character for character.
+- uncertain: 0 to 3 short questions that the articles themselves say are still open or unconfirmed. Do not invent doubts. Empty list if the articles raise none.
+- sources: for each source headline id, say whether it agrees with our summary, adds a detail, or differs (contradicts or frames it differently), with a note of at most 14 words.
+Reply with JSON only.`
+
+export function enrichPrompt(
+  story: { title: string; what_happened: string },
+  articles: { id: string; source: string; title: string }[],
+) {
+  return `Our title: ${story.title}
+Our summary: ${story.what_happened.slice(0, 1200)}
+
+Source headlines:
+${articles.map((a) => `${a.id} (${a.source}) ${a.title}`).join('\n')}
+
+Return:
+{"hype": "a3" or null, "highlight": "...", "uncertain": ["..."], "sources": [{"id": "a1", "stance": "agrees" | "adds" | "differs", "note": "..."}]}`
 }

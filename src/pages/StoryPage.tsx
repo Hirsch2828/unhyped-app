@@ -1,29 +1,66 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Clock, Lightbulb, Share2 } from 'lucide-react'
-import { findStory, useStories } from '../lib/stories'
-import { usePrefs } from '../lib/prefs'
-import { Img, LabelTag, Row, SaveButton, StoryCard, TopicPill, labelHint } from '../components/ui'
+import { ArrowLeft, ArrowRight, ExternalLink, Share2 } from 'lucide-react'
+import { ensureStories, findStory, useStories } from '../lib/stories'
+import { usePrefs, type Snap } from '../lib/prefs'
+import { feedFor, timeAgo, todayIssue } from '../lib/feed'
+import type { Story } from '../data/types'
+import { CategoryBadge, CompactRow, Headline, Photo, SaveButton, TrustMark, plural } from '../components/ui'
 import SignupSheet from '../components/SignupSheet'
+import { onePerThread, siblingsOf } from '../lib/threads'
+
+// One sentence that explains why the story carries its label (decided by rule, not by AI).
+export function statusLine(s: Story) {
+  if (s.label === 'official') {
+    const who = s.sources.find((x) => x.kind === 'Company')?.name
+    return who ? `Confirmed by an official source: ${who}.` : 'Confirmed by an official source.'
+  }
+  if (s.label === 'report') {
+    const outlets = s.sources.filter((x) => x.kind === 'News').length || s.sources.length
+    return `Reported by ${plural(outlets, 'outlet')}. No official confirmation yet.`
+  }
+  return 'Only forums or social posts so far. No outlet or company has confirmed it.'
+}
 
 export default function StoryPage() {
   const { id = '' } = useParams()
-  const { stories } = useStories()
+  const { stories, mode } = useStories()
   const story = findStory(id)
+  useEffect(() => {
+    if (mode === 'live' && !story) ensureStories([id])
+  }, [mode, id, story])
   const nav = useNavigate()
-  const { prefs, markRead } = usePrefs()
+  const { prefs, remember } = usePrefs()
   const [sheet, setSheet] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [progress, setProgress] = useState(0)
+  // What the story looked like the last time you read it (captured before this visit overwrites it).
+  const [prevSnap, setPrevSnap] = useState<Snap | undefined>(undefined)
+  const captured = useRef<string | null>(null)
 
   useEffect(() => {
-    if (story) markRead(story.id)
+    if (!story || captured.current === story.id) return
+    captured.current = story.id
+    setPrevSnap(prefs.snaps[story.id])
+    remember(story)
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, !!story])
+
+  // Reading progress for the thin bar under the top bar.
+  useEffect(() => {
+    const on = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight
+      setProgress(max > 0 ? Math.min(1, window.scrollY / max) : 0)
+    }
+    on()
+    window.addEventListener('scroll', on, { passive: true })
+    return () => window.removeEventListener('scroll', on)
   }, [id])
 
   if (!story)
     return (
-      <div className="p-8 text-center text-charcoal-500">
-        Story not found. <Link to="/" className="text-forest underline">Back home</Link>
+      <div className="p-8 text-center text-ink-soft">
+        This story isn’t here anymore. <Link to="/" className="text-ink underline">Back to today’s issue</Link>
       </div>
     )
 
@@ -31,7 +68,8 @@ export default function StoryPage() {
     if (!prefs.email && !prefs.signupDismissed) setSheet(true)
   }
   const share = async () => {
-    const url = window.location.href
+    // A share link with a real preview card (see api/share.js), not the bare #/ app URL.
+    const url = `${window.location.origin}/s/${story.id}`
     try {
       if (navigator.share) await navigator.share({ title: story.title, url })
       else {
@@ -43,118 +81,278 @@ export default function StoryPage() {
       /* user cancelled */
     }
   }
-  const related = stories.filter((s) => s.id !== story.id && prefs.topics.includes(s.topic)).slice(0, 6)
+  const { issue } = todayIssue(feedFor(prefs.topics, prefs.depth))
+  const at = issue.findIndex((s) => s.id === story.id)
+  const next = at >= 0 ? issue[at + 1] : undefined
+  // The same event's other developments first, then related stories (one per event).
+  const developing = siblingsOf(story, stories)
+  const devIds = new Set(developing.map((s) => s.id))
+  const others = stories.filter((s) => s.id !== story.id && !devIds.has(s.id) && prefs.topics.includes(s.topic))
+  const related = onePerThread(
+    [...others.filter((s) => s.area && s.area === story.area), ...others.filter((s) => s.topic === story.topic && s.area !== story.area)],
+    stories,
+  ).slice(0, 4)
+  const hasPicture = !!story.photo || !!story.ownImage
+  const delta = deltaOf(story, prevSnap)
+  const paragraphs = story.whatHappened.split(/\n\s*\n/).filter(Boolean)
+  const facts = story.claims?.length ? story.claims : story.takeaways.map((t) => ({ text: t, n: 0 }))
+  const unclear = story.uncertain ?? []
+
+  const deltaBox = delta.length > 0 && (
+    <div className="border-2 border-ink p-4">
+      <p className="text-[15px] font-bold text-ink">
+        <span className="mark">Δ</span> Since you read this · {timeAgo(Math.round((Date.now() - (prevSnap?.at ?? Date.now())) / 3600_000))}
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {delta.map((d) => (
+          <li key={d.what + d.to} className="text-[15px] leading-[21px] text-ink">
+            <span className="t-tag mr-2 text-ink-soft">{d.what}</span>
+            {d.from && <span className="mr-1.5 text-ink-faint line-through">{d.from}</span>}
+            {d.from && <span aria-hidden className="mr-1.5">→</span>}
+            <span className="font-semibold">{d.to}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 
   return (
     <article className="fade-in">
-      <div className="mx-auto max-w-3xl sm:px-8 sm:pt-6">
-        <div className="relative">
-          <Img src={story.image} className="h-72 w-full sm:h-[380px] sm:rounded-3xl" alt="" />
-          <div className="absolute inset-x-0 top-0 flex justify-between p-3 sm:p-4">
-            <button
-              onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))}
-              className="grid h-10 w-10 place-items-center rounded-full bg-sand-50/90 text-charcoal backdrop-blur"
-              aria-label="Back"
-            >
-              <ArrowLeft className="h-5 w-5" />
+      {/* Top bar: back to the issue, place in the issue, share and save; a thin reading-progress line */}
+      <div className="sticky top-0 z-30 bg-paper">
+        <div className="flex h-14 items-center justify-between px-1 sm:px-6">
+          <button
+            onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))}
+            className="press inline-flex min-h-[44px] items-center gap-2 px-2.5 text-[15px] font-semibold text-ink"
+            aria-label="Back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+            <span className="hidden sm:inline">Today’s issue</span>
+          </button>
+          {at >= 0 && <span className="t-meta text-ink-soft">Story {at + 1} of {issue.length}</span>}
+          <div className="flex">
+            <button onClick={share} className="press grid h-11 w-11 place-items-center text-ink" aria-label={copied ? 'Link copied' : 'Share this story'}>
+              {copied ? <span className="t-eyebrow">Copied</span> : <Share2 className="h-[18px] w-[18px]" strokeWidth={1.75} />}
             </button>
-            <span className="rounded-full bg-sand-50/90 backdrop-blur">
-              <SaveButton story={story} onSaved={onSaved} className="h-10 w-10" />
-            </span>
+            <SaveButton story={story} onSaved={onSaved} className="!text-ink" />
           </div>
         </div>
-
-        <div className="px-4 pt-6 sm:px-0">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-charcoal-500">
-            <TopicPill topic={story.topic} />
-            <span>{story.time} · Today</span>
-          </div>
-          <h1 className="mt-3 font-serif text-[2rem] font-semibold leading-tight sm:text-5xl">{story.title}</h1>
-          <p className="mt-3 text-lg leading-relaxed text-charcoal-500">{story.dek}</p>
-
-          <div className="mt-5 grid grid-cols-3 gap-2 text-sm">
-            <div className="rounded-xl border border-sand-300/70 bg-sand-50 p-3">
-              <p className="font-medium">
-                <LabelTag label={story.label} />
-              </p>
-              <p className="mt-0.5 text-xs text-charcoal-400">{story.mergedCount} sources</p>
-            </div>
-            <div className="flex items-center gap-2 rounded-xl border border-sand-300/70 bg-sand-50 p-3">
-              <Clock className="h-4 w-4 shrink-0 text-charcoal-500" />
-              <span>
-                <span className="block font-medium">{story.readMinutes} min</span>
-                <span className="block text-xs text-charcoal-400">read</span>
-              </span>
-            </div>
-            <button onClick={share} className="flex items-center gap-2 rounded-xl border border-sand-300/70 bg-sand-50 p-3 text-left hover:bg-sand-200">
-              <Share2 className="h-4 w-4 shrink-0 text-charcoal-500" />
-              <span className="font-medium">{copied ? 'Copied' : 'Share'}</span>
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-charcoal-400">{labelHint(story.label)}</p>
-
-          <section className="mt-8">
-            <h2 className="font-serif text-2xl font-semibold">Key takeaways</h2>
-            <ul className="mt-3 space-y-2 text-charcoal-500">
-              {story.takeaways.map((t) => (
-                <li key={t} className="flex gap-3">
-                  <span className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-charcoal" />
-                  {t}
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="mt-8">
-            <h2 className="font-serif text-2xl font-semibold">Why it matters</h2>
-            <div className="mt-3 flex gap-4 rounded-2xl bg-sand-200/70 p-5">
-              <Lightbulb className="h-7 w-7 shrink-0 text-honey" strokeWidth={1.5} />
-              <p className="leading-relaxed">{story.whyItMatters}</p>
-            </div>
-          </section>
-
-          <section className="mt-8">
-            <h2 className="font-serif text-2xl font-semibold">What happened</h2>
-            <p className="mt-3 leading-relaxed text-charcoal-500">{story.whatHappened}</p>
-          </section>
-
-          {story.marketReaction && (
-            <section className="mt-8 rounded-2xl border border-sand-300/70 bg-sand-50 p-5">
-              <h2 className="font-serif text-xl font-semibold">How the market reacted</h2>
-              <p className="mt-2 leading-relaxed text-charcoal-500">{story.marketReaction}</p>
-              <p className="mt-3 text-xs text-charcoal-400">Unhyped reports what happened. We never give buy or sell advice.</p>
-            </section>
-          )}
-
-          <section className="mt-8">
-            <h2 className="font-serif text-2xl font-semibold">Sources</h2>
-            <p className="mt-1 text-sm text-charcoal-400">{story.mergedCount} articles merged into this one story.</p>
-            <ul className="mt-3 divide-y divide-sand-300/70 overflow-hidden rounded-2xl border border-sand-300/70 bg-sand-50">
-              {story.sources.map((s) => (
-                <li key={s.name} className="flex items-start justify-between gap-4 p-4">
-                  <div>
-                    <p className="font-medium">{s.name}</p>
-                    <p className="text-sm text-charcoal-500">{s.claim}</p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-sand-200 px-2.5 py-0.5 text-xs text-charcoal-500">{s.kind}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+        <div className="h-[3px] bg-ink/10" aria-hidden>
+          <div className="h-[3px] bg-ink" style={{ width: `${progress * 100}%` }} />
         </div>
       </div>
 
-      {related.length > 0 && (
-        <div className="mt-12">
-          <Row title="More like this">
-            {related.map((s) => (
-              <StoryCard key={s.id} story={s} />
+      <div className="flex flex-wrap items-start gap-x-14 gap-y-12 px-4 pt-6 sm:px-8 sm:pt-8">
+        <div className="min-w-0 max-w-[760px] flex-[999_1_560px]">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <TrustMark label={story.label} explain />
+            <CategoryBadge story={story} className="!text-ink" />
+          </div>
+          <h1 className="mt-4 text-[36px] font-bold leading-[37px] tracking-[-0.04em] text-ink sm:text-[56px] sm:leading-[56px]">
+            <Headline story={story} mark />
+          </h1>
+          <p className="mt-4 text-[19px] leading-[28px] text-ink sm:text-[22px] sm:leading-[32px]">{story.dek}</p>
+          {story.hypeTitle && (
+            <p className="mt-3 text-[15px] text-ink-soft">
+              <span className="font-semibold">Elsewhere: </span>
+              <span className="line-through decoration-ink-soft">“{story.hypeTitle}”</span>
+            </p>
+          )}
+          <p className="mt-5 border-y border-rule py-3 text-[15px] leading-[22px] text-ink-soft">
+            <b className="text-ink">Why “{story.label === 'official' ? 'Official' : story.label === 'report' ? 'Report' : 'Rumor'}”:</b> {statusLine(story)}{' '}
+            <Link to={`/how?layer=label`} className="font-semibold text-ink underline decoration-1 underline-offset-[3px] hover:decoration-2">
+              How labels work
+            </Link>
+            <span className="t-meta mt-1 block">
+              {timeAgo(story.hoursAgo)} · {story.readMinutes} min read
+            </span>
+          </p>
+
+          {deltaBox && <div className="mt-6 lg:hidden">{deltaBox}</div>}
+
+          {hasPicture && (
+            <figure className="-mx-4 mt-7 sm:mx-0">
+              <Photo story={story} size="lg" credit eager className="aspect-[16/10] w-full sm:aspect-[16/9]" />
+            </figure>
+          )}
+
+          <h2 className="t-section mt-10 sm:text-[26px] sm:leading-[30px]">The short version</h2>
+          <ol className="mt-4 space-y-3.5">
+            {facts.map((c, i) => (
+              <li key={c.text} className="flex gap-4 text-[18px] leading-[27px] text-ink sm:text-[19px] sm:leading-[29px]">
+                <span className="t-meta w-6 shrink-0 pt-1.5 font-semibold text-ink">{String(i + 1).padStart(2, '0')}</span>
+                <span className="min-w-0 flex-1">
+                  {c.text}
+                  {c.n > 1 && <span className="t-meta ml-2 whitespace-nowrap text-ink-soft">· {c.n} sources</span>}
+                </span>
+              </li>
             ))}
-          </Row>
+          </ol>
+
+          <div className="mt-9 bg-ink p-5 text-paper sm:p-7">
+            <p className="text-[15px] font-bold text-lime">Why it matters</p>
+            <p className="mt-2 text-[19px] leading-[28px] sm:text-[21px] sm:leading-[31px]">{story.whyItMatters}</p>
+          </div>
+
+          {paragraphs.length > 0 && (
+            <>
+              <h2 className="t-section mt-10 sm:text-[26px] sm:leading-[30px]">What happened</h2>
+              <div className="mt-3 space-y-4">
+                {paragraphs.map((p, i) => (
+                  <p key={i} className="text-[18px] leading-[29px] text-ink sm:text-[19px] sm:leading-[31px]">
+                    {p}
+                  </p>
+                ))}
+              </div>
+            </>
+          )}
+          {story.marketReaction && (
+            <div className="mt-6 border-t border-rule pt-4">
+              <p className="text-[15px] font-bold text-ink">How the market reacted</p>
+              <p className="mt-1.5 text-[17px] leading-[27px] text-ink">{story.marketReaction}</p>
+              <p className="t-meta mt-2 text-ink-soft">Unhyped reports what happened. We never give buy or sell advice.</p>
+            </div>
+          )}
+
+          {unclear.length > 0 && (
+            <>
+              <h2 className="t-section mt-10 sm:text-[26px] sm:leading-[30px]">Still unclear</h2>
+              <ul className="mt-3 space-y-2.5">
+                {unclear.map((u) => (
+                  <li key={u} className="flex gap-3 text-[18px] leading-[28px] text-ink">
+                    <span aria-hidden className="font-mono font-semibold">?</span>
+                    {u}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
-      )}
+
+        <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-10 lg:sticky lg:top-24">
+          {deltaBox && <div className="hidden lg:block">{deltaBox}</div>}
+          <section>
+            <h2 className="t-section rule-strong pt-3">Sources ({story.sources.length || story.mergedCount})</h2>
+            <SourceTable story={story} />
+          </section>
+          {developing.length > 0 && (
+            <section id="developing">
+              <h2 className="t-section rule-strong pt-3">Developing story</h2>
+              <p className="mt-1 text-[15px] text-ink-soft">{plural(developing.length, 'more update')} on the same event, newest first.</p>
+              <ol className="mt-2 border-b border-rule">
+                {developing.map((s) => (
+                  <li key={s.id}>
+                    <Link to={`/story/${s.id}`} className="press group flex min-h-[44px] items-baseline gap-3 border-t border-rule py-3">
+                      <span className="t-meta w-10 shrink-0 text-ink-soft">{timeAgo(s.hoursAgo).replace(' ago', '')}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[16px] font-semibold leading-[22px] text-ink group-hover:underline">{s.title}</span>
+                        <span className="mt-1.5 block">
+                          <TrustMark label={s.label} />
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+          {related.length > 0 && (
+            <section>
+              <h2 className="t-section rule-strong pt-3">Related</h2>
+              <div className="mt-1 border-b border-rule">
+                {related.map((s) => (
+                  <CompactRow key={s.id} story={s} thumb />
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
+
+      <div className="px-4 sm:px-8">
+        {next ? (
+          <Link to={`/story/${next.id}`} className="press group mt-14 flex min-h-[44px] items-center justify-between gap-4 border-t-2 border-ink pt-5">
+            <span className="min-w-0">
+              <span className="block text-[15px] text-ink-soft">Next in today’s issue · {at + 2} of {issue.length}</span>
+              <span className="mt-1 block text-[22px] font-bold leading-[26px] tracking-[-0.02em] group-hover:underline sm:text-[26px] sm:leading-[30px]">{next.title}</span>
+            </span>
+            <span className="grid h-11 w-11 shrink-0 place-items-center bg-lime text-lime-ink">
+              <ArrowRight className="h-5 w-5" />
+            </span>
+          </Link>
+        ) : (
+          <Link to="/" className="press group mt-14 flex min-h-[44px] items-center justify-between gap-4 border-t-2 border-ink pt-5">
+            <span className="text-[22px] font-bold tracking-[-0.02em] group-hover:underline">Back to today’s issue</span>
+            <ArrowRight className="h-5 w-5" />
+          </Link>
+        )}
+      </div>
 
       {sheet && <SignupSheet onClose={() => setSheet(false)} />}
     </article>
   )
+}
+
+const stanceMark = { agrees: '✓', adds: '+', differs: '≠' } as const
+const stanceText = { agrees: 'Agrees', adds: 'Adds detail', differs: 'Differs' } as const
+
+// One row per source: what it says and whether it agrees, adds or differs. Many sources that only
+// agree are folded into one line, so the list doesn't pretend to be many independent confirmations.
+function SourceTable({ story }: { story: Story }) {
+  const [all, setAll] = useState(false)
+  const notes = new Map((story.sourceNotes ?? []).map((n) => [n.source, n]))
+  const rows = story.sources.map((s) => ({ ...s, note: notes.get(s.name) }))
+  const keyRows = rows.filter((r) => r.note && r.note.stance !== 'agrees')
+  const ordered = [...keyRows, ...rows.filter((r) => !keyRows.includes(r))]
+  const visible = all ? ordered : ordered.slice(0, Math.max(5, keyRows.length))
+  const hidden = ordered.length - visible.length
+  return (
+    <>
+      <p className="t-meta mb-2 mt-1 text-ink-soft">
+        {story.sources.length < story.mergedCount
+          ? `${plural(story.mergedCount, 'article')} from ${plural(story.sources.length, 'source')}`
+          : `${plural(story.mergedCount, 'article')} merged into this story`}
+        {' · '}✓ agrees · + adds detail · ≠ differs
+      </p>
+      <ul className="border-b border-rule">
+        {visible.map((s) => (
+          <li key={s.name + s.url}>
+            <a href={s.url} target="_blank" rel="noopener noreferrer" className="group flex min-h-[56px] gap-3 border-t border-rule py-3">
+              <span
+                aria-label={s.note ? stanceText[s.note.stance] : 'Covers the story'}
+                className={`grid h-6 w-6 shrink-0 place-items-center border text-[13px] font-bold ${s.note?.stance === 'differs' ? 'border-dashed border-ink' : 'border-ink'} ${s.note?.stance === 'adds' ? 'bg-ink text-paper' : 'text-ink'}`}
+              >
+                {s.note ? stanceMark[s.note.stance] : '·'}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="font-semibold leading-5 text-ink group-hover:underline">{s.name}</span>
+                  <span className="t-meta shrink-0 text-ink-soft">{s.kind}</span>
+                </span>
+                <span className="mt-0.5 block text-[14px] leading-[20px] text-ink-soft">{s.note?.note || s.claim}</span>
+              </span>
+              <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" />
+            </a>
+          </li>
+        ))}
+      </ul>
+      {hidden > 0 && (
+        <button onClick={() => setAll(true)} className="press t-eyebrow mt-1 min-h-[44px] text-ink-soft hover:text-ink">
+          + {hidden} more {hidden === 1 ? 'source covers' : 'sources cover'} the same story
+        </button>
+      )}
+    </>
+  )
+}
+
+// What changed since your last read: more sources, a new label, a new headline, new key points.
+function deltaOf(s: Story, snap?: Snap) {
+  if (!snap) return []
+  const out: { what: string; from?: string; to: string }[] = []
+  const name = { official: 'Official', report: 'Report', rumor: 'Rumor' }
+  if (s.label !== snap.label) out.push({ what: 'Label', from: name[snap.label], to: name[s.label] })
+  if (s.mergedCount > snap.sources) out.push({ what: 'Sources', from: String(snap.sources), to: String(s.mergedCount) })
+  if (s.title !== snap.title) out.push({ what: 'Headline', from: snap.title, to: s.title })
+  for (const t of s.takeaways.filter((t) => !snap.takeaways.includes(t)).slice(0, 2)) out.push({ what: 'New', to: t })
+  return out
 }

@@ -1,13 +1,19 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import type { Depth, Topic } from '../data/types'
 import { allTopics, depthInfo, topicInfo } from '../data/topics'
 import { usePrefs } from '../lib/prefs'
-import { Button, Check, Icon, Img, Logo } from '../components/ui'
+import { getStories, useStories } from '../lib/stories'
+import { feedFor } from '../lib/feed'
+import { onePerThread } from '../lib/threads'
+import { Button, Check, Icon, Logo, TrustMark, labelHint } from '../components/ui'
 
 export default function Onboarding() {
   const { update } = usePrefs()
+  const { articles24h, mode } = useStories()
+  // How many stories each depth would put in today's issue, for the topics picked so far.
+  const storiesFor = (d: Depth) => onePerThread(feedFor(topics.length ? topics : ['ai'], d).filter((x) => x.hoursAgo <= 24), getStories()).length
   const nav = useNavigate()
   const [step, setStep] = useState(1)
   const [topics, setTopics] = useState<Topic[]>(['ai'])
@@ -31,55 +37,42 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-sand sm:grid sm:place-items-center sm:py-10">
-      <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col bg-sand-50 px-5 pb-6 pt-6 sm:min-h-0 sm:rounded-3xl sm:border sm:border-sand-300/70 sm:px-8 sm:shadow-card">
-        <div className="flex items-center justify-between">
+    <main className="min-h-screen bg-sand sm:grid sm:place-items-center sm:py-10">
+      <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col px-6 pb-6 pt-4 sm:min-h-0 sm:rounded-media sm:bg-sand-50 sm:px-10 sm:py-8 sm:shadow-soft">
+        <div className="flex h-11 items-center justify-between">
           <Logo />
-          <button onClick={() => finish(true)} className="text-sm text-charcoal-500 hover:text-charcoal">
+          <button onClick={() => finish(true)} className="t-meta -mr-2 h-11 px-2 text-charcoal-500 hover:text-charcoal">
             Skip
           </button>
         </div>
-        <div className="mt-6 flex items-center gap-4">
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-sand-200">
-            <div className="h-full rounded-full bg-forest transition-all duration-500" style={{ width: `${(step / 2) * 100}%` }} />
+        <div className="mt-4 flex items-center gap-4">
+          <div className="h-[2px] flex-1 bg-rule">
+            <div className="h-full bg-forest transition-all duration-500" style={{ width: `${(step / 2) * 100}%` }} />
           </div>
-          <span className="text-sm text-charcoal-500">{step} / 2</span>
+          <span className="t-meta text-charcoal-400">{step} of 2</span>
         </div>
 
         <div key={step} className="fade-in mt-8 flex-1">
           {step === 1 && (
             <>
-              <h1 className="font-serif text-[2rem] font-semibold leading-tight">What are you interested in?</h1>
-              <p className="mt-2 text-charcoal-500">Choose one or more topics to follow.</p>
+              <h1 className="t-display">What do you want to follow?</h1>
+              <p className="mt-2 text-charcoal-500">Pick one or both. You can change this later.</p>
               <div className="mt-6 grid grid-cols-2 gap-3">
-                {allTopics.map((t, i) => {
+                {allTopics.map((t) => {
                   const on = topics.includes(t)
-                  const big = i < 2 // launch topics get the big cards
                   return (
                     <button
                       key={t}
                       onClick={() => toggleTopic(t)}
                       aria-pressed={on}
-                      className={`relative overflow-hidden rounded-2xl border text-left transition ${on ? 'border-forest ring-2 ring-forest' : 'border-sand-300/70 hover:border-sage'}`}
+                      className={`press relative aspect-[3/4] overflow-hidden border text-left ${on ? 'border-2 border-ink bg-ink text-paper' : 'border-ink text-ink'}`}
                     >
-                      {big ? (
-                        <>
-                          <Img src={topicInfo[t].image} className="h-44 w-full sm:h-48" />
-                          <span className="absolute inset-0 bg-gradient-to-t from-charcoal/85 via-charcoal/20 to-transparent" />
-                          <span className="absolute inset-x-0 bottom-0 p-3.5 text-white">
-                            <span className="block text-xl font-semibold">{topicInfo[t].name}</span>
-                            <span className="block text-[13px] leading-snug text-white/85">{topicInfo[t].desc}</span>
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <Img src={topicInfo[t].image} className="h-24 w-full" />
-                          <span className="block bg-sand-50 p-3">
-                            <span className="block font-semibold">{topicInfo[t].name}</span>
-                            <span className="block text-[13px] leading-snug text-charcoal-500">{topicInfo[t].desc}</span>
-                          </span>
-                        </>
-                      )}
+                      <span className={`halftone absolute inset-0 opacity-[0.14] [mask-image:linear-gradient(160deg,transparent_30%,#000_100%)] ${on ? 'invert' : ''}`} />
+                      <span aria-hidden className="absolute right-3 top-12 text-[96px] font-bold leading-none tracking-[-0.06em]">{t === 'ai' ? '◇' : 'T'}</span>
+                      <span className="absolute inset-x-0 bottom-0 p-4">
+                        <span className="block text-[26px] font-bold leading-7 tracking-[-0.03em]">{topicInfo[t].name}</span>
+                        <span className={`t-meta mt-1.5 block min-h-[48px] ${on ? 'text-paper/80' : 'text-ink-soft'}`}>{topicInfo[t].desc}</span>
+                      </span>
                       <span className="absolute right-3 top-3">
                         <Check on={on} dark />
                       </span>
@@ -87,51 +80,76 @@ export default function Onboarding() {
                   )
                 })}
               </div>
+              <div className="mt-8 border-t border-rule pt-5">
+                <p className="t-eyebrow text-sage-ink">Every story is labeled</p>
+                <ul className="mt-3 space-y-2.5 text-[14px] leading-5">
+                  {(['official', 'report', 'rumor'] as const).map((l) => (
+                    <li key={l} className="flex gap-3">
+                      <span className="t-meta w-20 shrink-0 pt-0.5 text-charcoal">
+                        <TrustMark label={l} />
+                      </span>
+                      <span className="text-charcoal-500">{labelHint(l)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link to="/how" className="mt-4 inline-flex min-h-[44px] items-center gap-1.5 text-[15px] font-semibold text-ink underline decoration-1 underline-offset-[3px] hover:decoration-2">
+                  {articles24h !== null ? `How ${articles24h} articles became today’s handful of stories` : 'How we choose what you see'} <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
             </>
           )}
 
           {step === 2 && (
             <>
-              <h1 className="font-serif text-[2rem] font-semibold leading-tight">How much do you want to know?</h1>
-              <p className="mt-2 text-charcoal-500">Choose the level of coverage that fits you. You can change this anytime.</p>
-              <div className="mt-6 space-y-3">
+              <h1 className="t-display">How much do you want to know?</h1>
+              <p className="mt-2 text-charcoal-500">Choose how much shows up each day. You can change this anytime.</p>
+              <div className="mt-6 border-b border-rule" role="radiogroup">
                 {(Object.keys(depthInfo) as Depth[]).map((d) => {
                   const on = depth === d
                   return (
                     <button
                       key={d}
+                      role="radio"
+                      aria-checked={on}
                       onClick={() => setDepth(d)}
-                      aria-pressed={on}
-                      className={`flex w-full items-center gap-5 rounded-2xl border p-5 text-left transition ${on ? 'border-sage bg-sage-100/70' : 'border-sand-300/70 bg-sand-50 hover:border-sage'}`}
+                      className="press flex w-full items-center gap-4 border-t border-rule py-5 text-left"
                     >
-                      <Icon name={depthInfo[d].icon} className="h-9 w-9 shrink-0 text-charcoal" strokeWidth={1.5} />
+                      <Icon name={depthInfo[d].icon} className={`h-6 w-6 shrink-0 ${on ? 'text-forest' : 'text-charcoal-400'}`} strokeWidth={1.5} />
                       <span className="flex-1">
-                        <span className="block font-semibold">{depthInfo[d].name}</span>
-                        <span className="block text-sm text-charcoal-500">{depthInfo[d].desc}</span>
+                        <span className="block text-[19px] font-semibold leading-6 tracking-[-0.01em]">{depthInfo[d].name}</span>
+                        <span className="mt-1 block text-[14px] leading-[20px] text-ink-soft">{depthInfo[d].desc}</span>
                       </span>
+                      {mode === 'live' && <span className="t-meta shrink-0 text-ink-soft">{storiesFor(d)} today</span>}
                       <Check on={on} />
                     </button>
                   )
                 })}
               </div>
+              {/* The promise, made concrete before you commit: what today's issue will hold. */}
+              {mode === 'live' && (
+                <p className="mt-5 text-[17px] leading-[25px] text-ink" aria-live="polite">
+                  Today that’s <span className="mark font-semibold">{storiesFor(depth)} {storiesFor(depth) === 1 ? 'story' : 'stories'}</span>
+                  {articles24h !== null ? `, picked from ${articles24h} articles.` : '.'}
+                </p>
+              )}
             </>
           )}
         </div>
 
         <div className="mt-8 flex gap-3">
           {step > 1 && (
-            <Button variant="secondary" onClick={() => setStep(step - 1)}>
-              <ArrowLeft className="h-4 w-4" /> Back
+            <Button variant="secondary" onClick={() => setStep(step - 1)} aria-label="Back">
+              <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
           <Button className="flex-1" disabled={step === 1 && topics.length === 0} onClick={next}>
             {step === 2 ? 'Create my feed' : 'Continue'} <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
-        <p className="mt-3 text-center text-xs text-charcoal-400">
-          {step === 2 ? 'No account needed. Start reading right away.' : 'You can always change this later in Settings.'}
+        <p className="t-meta mt-3 text-center text-charcoal-400">
+          {step === 2 ? 'No account needed. Start reading right away.' : 'No account needed.'}
         </p>
       </div>
-    </div>
+    </main>
   )
 }

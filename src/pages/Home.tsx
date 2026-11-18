@@ -1,137 +1,264 @@
-import { Link } from 'react-router-dom'
-import { ArrowRight, ChevronRight, FileText, Pencil, Plus } from 'lucide-react'
-import { buildHome } from '../lib/feed'
-import { usePrefs } from '../lib/prefs'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ArrowRight } from 'lucide-react'
+import { applyFilter, feedFor, homeChips, issueNo, timeAgo, todayIssue } from '../lib/feed'
+import { usePrefs, type Snap } from '../lib/prefs'
 import { useStories } from '../lib/stories'
-import { topicInfo } from '../data/topics'
-import { ArrowCircle, Img, LabelTag, MetaRow, Row, SectionHeader, StoryCard, TopicPill } from '../components/ui'
+import { siblingsOf, threadsOf, onePerThread } from '../lib/threads'
+import type { Story } from '../data/types'
+import { CategoryBadge, CompactRow, Headline, MetaRow, Photo, StoryCard, TrustMark, hasPicture } from '../components/ui'
+
+// Changed since you read it: more sources, a new label or a new headline.
+export const changedSince = (s: Story, snap?: Snap) =>
+  !!snap && (s.mergedCount > snap.sources || s.label !== snap.label || s.title !== snap.title)
 
 export default function Home() {
   const { prefs } = usePrefs()
-  const { mode } = useStories()
-  const { hero, must, rows } = buildHome(prefs.topics, prefs.depth, prefs.areas)
-  const topicNames = prefs.topics.map((t) => topicInfo[t].name)
+  const { articles24h, stories } = useStories()
+  const [params, setParams] = useSearchParams()
+  const chips = homeChips(prefs.topics, prefs.depth)
+  const filter = chips.some((c) => c.id === params.get('f')) ? params.get('f')! : 'all'
+  const onlyChanged = params.get('since') === '1'
+  const pick = (id: string) => setParams(id === 'all' ? {} : { f: id }, { replace: true })
+
+  const feed = applyFilter(feedFor(prefs.topics, prefs.depth), filter)
+  const { issue, quiet } = todayIssue(feed)
+  const [lead, ...also] = issue
+  // Hide every story whose event is already in the issue; its other developments sit under it.
+  const threads = threadsOf(stories)
+  const shown = new Set(issue.flatMap((s) => (threads.get(s.id) ?? [s]).map((x) => x.id)))
+
+  // Since your last visit
+  const prev = prefs.prevVisit
+  const fresh = prev ? feed.filter((s) => Date.now() - s.hoursAgo * 3600_000 > prev && !prefs.read.includes(s.id)) : []
+  const changed = feed.filter((s) => changedSince(s, prefs.snaps[s.id]))
+  const sinceList = [...new Map([...changed, ...fresh].map((s) => [s.id, s])).values()]
+
+  // Everything else: today first, then the rest of the week by importance. Each story once.
+  const rest = onePerThread(
+    feed
+      .filter((s) => !shown.has(s.id))
+      .sort((a, b) => Number(b.hoursAgo <= 24) - Number(a.hoursAgo <= 24) || b.importance - a.importance || a.hoursAgo - b.hoursAgo),
+    stories,
+  )
+  const official = rest.filter((s) => s.label === 'official').slice(0, 4)
+  const officialIds = new Set(official.map((s) => s.id))
+  const list = rest.filter((s) => !officialIds.has(s.id)).slice(0, 10)
+
+  const intro = quiet
+    ? 'Quiet day. Nothing new held up in the last 48 hours, so here are the latest stories.'
+    : articles24h !== null
+      ? `We read ${articles24h} articles in the last 24 hours. ${issue.length === 1 ? 'This one is' : `These ${issue.length} are`} worth your time.`
+      : `${issue.length} stories worth your time today.`
 
   return (
-    <div className="space-y-8 pt-4 sm:space-y-10 sm:pt-6">
-      {hero && (
-        <Link to={`/story/${hero.id}`} className="group mx-4 block sm:mx-8" aria-label={hero.title}>
-          <article className="fade-in relative overflow-hidden rounded-3xl bg-charcoal shadow-card">
-            <Img src={hero.image} className="h-[420px] w-full object-[22%_center] sm:h-[480px] sm:-scale-x-100 sm:object-center" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent sm:bg-gradient-to-r sm:from-black/85 sm:via-black/55 sm:to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:inset-y-0 sm:right-auto sm:flex sm:max-w-[620px] sm:flex-col sm:justify-center sm:p-12">
-              <div className="flex items-center gap-2">
-                <span className="rounded-md bg-terra px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">Top story</span>
-                <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs backdrop-blur">{topicInfo[hero.topic].name}</span>
-              </div>
-              <h1 className="mt-3 text-[1.75rem] font-semibold leading-[1.1] sm:text-4xl lg:text-[2.75rem]">{hero.title}</h1>
-              <p className="mt-2 text-white/85 sm:text-lg">{hero.dek}</p>
-              <div className="mt-4 hidden border-l-2 border-terra pl-4 sm:block">
-                <p className="text-sm font-semibold text-terra">Why it matters</p>
-                <p className="mt-1 line-clamp-3 text-[0.95rem] leading-relaxed text-white/85">{hero.whyItMatters}</p>
-              </div>
-              <div className="mt-4 flex items-center justify-between gap-4">
-                <MetaRow story={hero} light />
-                <ArrowCircle dark />
-              </div>
-            </div>
-          </article>
-        </Link>
+    <div className="fade-in px-4 pb-2 sm:px-8">
+      <div className="flex flex-col gap-3 pt-5 sm:pt-7 lg:flex-row lg:items-center lg:justify-between">
+        {articles24h !== null && !quiet ? (
+          // The cover line: the noise we read, struck through, and what made the issue.
+          <p className="text-[22px] font-bold leading-[28px] tracking-[-0.025em] text-ink sm:text-[28px] sm:leading-[34px]">
+            <s className="font-medium text-ink-soft decoration-2">{articles24h} articles</s> <span aria-hidden>→</span>{' '}
+            <span className="mark">{issue.length} stories</span> worth your time.{' '}
+            <Link to="/how" className="whitespace-nowrap text-[15px] font-semibold tracking-normal text-ink-soft underline decoration-1 underline-offset-[3px] hover:text-ink sm:text-[16px]">
+              How we choose
+            </Link>
+          </p>
+        ) : (
+          <p className="text-[16px] leading-6 text-ink-soft sm:text-[18px]">{intro}</p>
+        )}
+        <nav aria-label="Filter by desk" className="no-scrollbar -mx-4 flex overflow-x-auto px-3 lg:mx-0 lg:flex-wrap lg:px-0">
+          {chips.slice(0, 6).map((c) => (
+            <button key={c.id} onClick={() => pick(c.id)} aria-pressed={filter === c.id} className="press flex h-11 shrink-0 items-center px-1">
+              <span className={`flex h-8 items-center px-2.5 text-[14px] font-semibold ${filter === c.id ? 'bg-ink text-paper' : 'text-ink-soft hover:text-ink'}`}>{c.name}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {sinceList.length > 0 && (
+        <button
+          onClick={() => setParams(onlyChanged ? (filter === 'all' ? {} : { f: filter }) : { ...(filter === 'all' ? {} : { f: filter }), since: '1' }, { replace: true })}
+          aria-pressed={onlyChanged}
+          className="press mt-3 flex min-h-[44px] w-full items-center justify-between gap-3 border-[1.5px] border-ink px-4 py-2 text-left"
+        >
+          <span className="text-[15px] font-medium text-ink">
+            <span className="mark font-bold">Δ</span>{' '}
+            {[fresh.length && `${fresh.length} new`, changed.length && `${changed.length} updated`].filter(Boolean).join(' · ')} since your last visit
+          </span>
+          <span className="t-eyebrow text-ink-soft">{onlyChanged ? 'Show all' : 'Show'}</span>
+        </button>
       )}
 
-      <Link
-        to="/brief"
-        className="group mx-4 flex items-center gap-4 rounded-2xl border border-sand-300/70 bg-sand-50 p-4 shadow-card transition hover:border-terra/50 sm:mx-8 sm:p-5"
-      >
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-terra text-white sm:h-14 sm:w-14">
-          <FileText className="h-6 w-6" />
-        </span>
-        <span className="flex-1">
-          <span className="block font-serif text-xl font-semibold">Your 5-Minute Briefing</span>
-          <span className="block text-sm text-charcoal-500">
-            Catch up on today’s top {topicNames.slice(0, 2).join(' and ')} updates, in a calm and clear summary.
-          </span>
-        </span>
-        <span className="hidden items-center gap-2 rounded-full bg-terra px-5 py-3 text-sm font-medium text-white transition group-hover:bg-terra-600 md:inline-flex">
-          Read your 5-minute brief <ArrowRight className="h-4 w-4" />
-        </span>
-        <ChevronRight className="h-5 w-5 text-charcoal-400 md:hidden" />
-      </Link>
+      {onlyChanged ? (
+        <section className="mt-8 lg:max-w-[66%]">
+          <h2 className="t-section rule-strong pt-3">Since your last visit</h2>
+          <div className="mt-2 border-b border-rule">
+            {sinceList.map((s) => (
+              <CompactRow key={s.id} story={s} thumb />
+            ))}
+          </div>
+        </section>
+      ) : (
+        <>
+          {lead ? <Lead story={lead} read={prefs.read.includes(lead.id)} more={siblingsOf(lead, stories)} /> : <p className="mt-10 text-[18px] text-ink-soft">No stories on this desk this week.</p>}
 
-      <section>
-        <SectionHeader
-          title="Your topics"
-          action={
-            <Link to="/settings" className="inline-flex items-center gap-1.5 text-sm text-charcoal-500 hover:text-charcoal">
-              <Pencil className="h-4 w-4" /> Edit topics
+          {also.length > 0 && (
+            <section className="mt-12 sm:mt-14" aria-label="Also in today's issue">
+              <div className="rule-strong flex items-baseline justify-between pt-3">
+                <h2 className="t-section">{quiet ? 'Also recent' : 'Also in today’s issue'}</h2>
+                <Link to="/brief" className="t-eyebrow -my-3 inline-flex min-h-[44px] items-center gap-1 text-ink-soft hover:text-ink">
+                  Read as cards <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+              <div className="mt-1 grid grid-cols-1 gap-x-8 sm:mt-5 sm:grid-cols-2 sm:gap-y-10 lg:grid-cols-4">
+                {also.map((s) => (
+                  <StoryCard key={s.id} story={s} rowOnPhone />
+                ))}
+              </div>
+            </section>
+          )}
+
+          <div className="mt-12 grid grid-cols-1 gap-x-8 gap-y-12 sm:mt-14 lg:grid-cols-12">
+            {list.length > 0 && (
+              <section className="lg:col-span-8">
+                <h2 className="t-section rule-strong pt-3">Everything else worth knowing</h2>
+                <p className="mt-1 text-[15px] text-ink-soft">Smaller stories from this week, today’s first.</p>
+                <div className="mt-2 border-b border-rule">
+                  {list.map((s) => (
+                    <CompactRow key={s.id} story={s} thumb />
+                  ))}
+                </div>
+                <Link to={`/c/latest${filter === 'all' ? '' : `?f=${filter}`}`} className="mt-2 inline-flex min-h-[44px] items-center gap-1.5 text-[16px] font-semibold text-ink hover:underline">
+                  See all {feed.length} stories <ArrowRight className="h-4 w-4" />
+                </Link>
+              </section>
+            )}
+
+            <aside className="flex flex-col gap-10 lg:col-span-4">
+              <Link to="/brief" className="press group block bg-ink p-6 text-paper">
+                <span className="t-meta text-paper/70">Your 5-minute briefing</span>
+                <span className="mt-1.5 block text-[24px] font-bold leading-[28px] tracking-[-0.02em]">The whole issue, one card at a time.</span>
+                <span className="mt-5 inline-flex min-h-[44px] items-center gap-1.5 bg-lime px-4 text-[15px] font-bold text-lime-ink">
+                  Start briefing <ArrowRight className="h-4 w-4" />
+                </span>
+              </Link>
+
+              {official.length > 0 && (
+                <section>
+                  <h2 className="t-section rule-strong pt-3">Straight from the source</h2>
+                  <p className="mt-1 text-[15px] text-ink-soft">Confirmed by the company, a regulator or a paper.</p>
+                  <ul className="mt-2 border-b border-rule">
+                    {official.map((s) => (
+                      <li key={s.id}>
+                        <Link to={`/story/${s.id}`} className="press group flex flex-col gap-1.5 border-t border-rule py-3.5">
+                          <CategoryBadge story={s} />
+                          <span className="text-[17px] font-semibold leading-[22px] tracking-[-0.01em] group-hover:underline">
+                            <Headline story={s} />
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </aside>
+          </div>
+        </>
+      )}
+
+      <LastPage />
+    </div>
+  )
+}
+
+/* ---------- The lead story ---------- */
+
+function Lead({ story, read, more }: { story: Story; read: boolean; more: Story[] }) {
+  return (
+    <div className="mt-5 grid grid-cols-1 gap-x-8 gap-y-4 sm:mt-6 lg:grid-cols-12">
+      {hasPicture(story) ? (
+        <Link to={`/story/${story.id}`} tabIndex={-1} aria-hidden className="press -mx-4 sm:mx-0 lg:col-span-8">
+          <Photo story={story} size="lg" credit eager className="aspect-[4/3] sm:aspect-[16/10]" />
+        </Link>
+      ) : (
+        // No picture: the headline itself is the cover, set big across the wide column.
+        <div className="border-t-2 border-ink pt-4 lg:col-span-8">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <TrustMark label={story.label} />
+            <CategoryBadge story={story} className="!text-ink" />
+          </div>
+          <h1 className="mt-4 text-balance text-[38px] font-bold leading-[39px] tracking-[-0.04em] text-ink sm:text-[64px] sm:leading-[62px] lg:text-[72px] lg:leading-[70px]">
+            <Link to={`/story/${story.id}`} className="hover:underline hover:decoration-[4px] hover:underline-offset-[8px]">
+              <Headline story={story} mark />
             </Link>
-          }
-        />
-        <div className="no-scrollbar flex gap-3 overflow-x-auto px-4 pb-1 sm:px-8">
-          {prefs.topics.map((t) => (
-            <a
-              key={t}
-              href={`#row-${t}`}
-              onClick={(e) => {
-                e.preventDefault()
-                document.getElementById(`row-${t}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-              }}
-              className="flex shrink-0 items-center gap-3 rounded-xl border border-sand-300/70 bg-sand-50 py-2 pl-2 pr-5 text-sm font-medium hover:border-sage"
-            >
-              <Img src={topicInfo[t].image} className="h-9 w-9 rounded-lg" />
-              {topicInfo[t].name}
-            </a>
-          ))}
-          <Link
-            to="/settings"
-            className="flex shrink-0 items-center gap-2 rounded-xl border border-dashed border-sand-300 px-5 py-2 text-sm text-charcoal-500 hover:text-charcoal"
-          >
-            <Plus className="h-4 w-4" /> Add topic
-          </Link>
+          </h1>
+          <p className="mt-5 max-w-[640px] text-[19px] leading-[28px] text-ink sm:text-[22px] sm:leading-[32px]">{story.dek}</p>
         </div>
-      </section>
-
-      {must.length > 0 && (
-        <section className="fade-in">
-          <SectionHeader title="Must know today" subtitle="The few that matter" />
-          <ol className="mx-4 grid grid-cols-1 gap-3 sm:mx-8 lg:grid-cols-2">
-            {must.map((s, i) => (
-              <li key={s.id} className="min-w-0">
-                <Link
-                  to={`/story/${s.id}`}
-                  className="group flex items-center gap-3 sm:gap-4 rounded-2xl border border-sand-300/70 bg-sand-50 p-3 transition hover:border-sage"
-                >
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-forest text-sm text-sand-50">{i + 1}</span>
-                  <Img src={s.image} className="h-20 w-20 shrink-0 rounded-xl sm:w-24" />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-charcoal-400">
-                      <TopicPill topic={s.topic} /> <LabelTag label={s.label} />
-                    </span>
-                    <span className="mt-1 line-clamp-2 block font-serif text-[1.05rem] font-semibold leading-snug">{s.title}</span>
-                  </span>
-                  <span className="hidden sm:block">
-                    <ArrowCircle />
-                  </span>
+      )}
+      <div className={`flex flex-col gap-4 lg:col-span-4 lg:row-span-2 ${hasPicture(story) ? 'lg:pt-1' : 'lg:border-t-2 lg:border-ink lg:pt-4'}`}>
+        {hasPicture(story) && (
+          <>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <TrustMark label={story.label} />
+          <CategoryBadge story={story} className="!text-ink" />
+        </div>
+        <h1
+          className={`text-balance font-bold tracking-[-0.035em] text-ink ${
+            story.title.length > 70
+              ? 'text-[30px] leading-[32px] sm:text-[38px] sm:leading-[40px]'
+              : 'text-[34px] leading-[35px] sm:text-[46px] sm:leading-[47px]'
+          }`}
+        >
+          <Link to={`/story/${story.id}`} className="hover:underline hover:decoration-[3px] hover:underline-offset-[6px]">
+            <Headline story={story} mark />
+          </Link>
+        </h1>
+        <p className="text-[18px] leading-[27px] text-ink sm:text-[19px]">{story.dek}</p>
+          </>
+        )}
+        <div className={hasPicture(story) ? 'border-t border-rule pt-3.5' : ''}>
+          <p className="text-[14px] font-bold text-ink">Why it matters</p>
+          <p className="mt-1 text-[16.5px] leading-[25px] text-ink">{story.whyItMatters}</p>
+        </div>
+        <MetaRow story={story} read={read} />
+      </div>
+      {more.length > 0 && (
+        <div className="border-t-2 border-ink pt-3 lg:col-span-8 lg:mt-2">
+          <p className="text-[14px] font-bold text-ink">
+            Developing · {more.length} more {more.length === 1 ? 'update' : 'updates'} on this
+          </p>
+          <ul className="mt-1">
+            {more.slice(0, 3).map((s) => (
+              <li key={s.id}>
+                <Link to={`/story/${s.id}`} className="press group flex min-h-[44px] items-baseline gap-3 border-t border-rule py-2.5">
+                  <span className="t-meta w-9 shrink-0 text-ink-soft">{timeAgo(s.hoursAgo).replace(' ago', '')}</span>
+                  <span className="text-[15.5px] font-medium leading-[21px] text-ink group-hover:underline">{s.title}</span>
                 </Link>
               </li>
             ))}
-          </ol>
-        </section>
-      )}
-
-      {rows.map((r) => (
-        <div key={r.id} id={`row-${r.id}`} className="scroll-mt-20">
-          <Row title={r.title} subtitle={r.subtitle}>
-            {r.items.map((s) => (
-              <StoryCard key={s.id} story={s} />
-            ))}
-          </Row>
+          </ul>
+          {more.length > 3 && (
+            <Link to={`/story/${story.id}`} className="t-eyebrow inline-flex min-h-[44px] items-center gap-1 text-ink-soft hover:text-ink">
+              All {more.length} updates <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
         </div>
-      ))}
-      {/* AI has no dedicated row: anchor its chip to trending */}
-      <span id="row-ai" className="hidden" />
+      )}
+    </div>
+  )
+}
 
-      <p className="px-4 text-center text-xs text-charcoal-400 sm:px-8">{mode === 'live' ? "You're all caught up." : 'Sample stories for the demo. You are all caught up.'}</p>
+/* ---------- The last page ---------- */
+
+export function LastPage({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className={`border-t-2 border-ink pt-6 ${compact ? '' : 'mt-16'}`}>
+      <p className="t-meta uppercase text-ink-soft">End of issue No. {issueNo()}</p>
+      <p className="mt-3 text-[32px] font-bold leading-[34px] tracking-[-0.04em] text-ink sm:text-[44px] sm:leading-[46px]">
+        That’s the issue.{' '}
+        <br className="sm:hidden" />
+        <span className="mark">Go do something good.</span>
+      </p>
+      <p className="t-meta mt-4 text-ink-soft">No. {issueNo() + 1} comes out tomorrow morning. New stories still arrive through the day.</p>
     </div>
   )
 }

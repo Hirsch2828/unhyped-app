@@ -1,5 +1,6 @@
 import { getStories } from './stories'
-import { topicInfo } from '../data/topics'
+import { onePerThread } from './threads'
+import { areas, topicInfo } from '../data/topics'
 import type { Depth, Story, Topic } from '../data/types'
 
 const minImportance: Record<Depth, number> = { essentials: 3, balanced: 2, everything: 1 }
@@ -9,39 +10,98 @@ export function feedFor(topics: Topic[], depth: Depth): Story[] {
 }
 
 const score = (s: Story) => s.importance * 100 - s.hoursAgo
+const newest = (a: Story, b: Story) => a.hoursAgo - b.hoursAgo
 
-export function buildHome(topics: Topic[], depth: Depth, areas: string[]) {
-  const feed = [...feedFor(topics, depth)].sort((a, b) => score(b) - score(a))
-  const hero = feed[0]
-  const rest = feed.slice(1)
+export interface HomeRow {
+  id: string
+  title: string
+  subtitle?: string
+  items: Story[]
+}
 
-  const rows: { id: string; title: string; subtitle?: string; items: Story[] }[] = []
+// Home filter: 'all', a topic id ('ai', 'tesla') or an area id ('agents', 'fsd', ...).
+export function applyFilter(feed: Story[], filter: string) {
+  if (!filter || filter === 'all') return feed
+  if (filter in topicInfo) return feed.filter((s) => s.topic === filter)
+  return feed.filter((s) => s.area === filter)
+}
+
+// Chips shown under the hero: All, each followed topic, then the areas that have stories this week.
+export function homeChips(topics: Topic[], depth: Depth) {
+  const feed = feedFor(topics, depth)
+  const chips: { id: string; name: string }[] = [{ id: 'all', name: 'All' }]
+  for (const t of topics) chips.push({ id: t, name: topicInfo[t].name })
+  for (const t of topics)
+    for (const a of areas[t] ?? []) if (feed.some((s) => s.topic === t && s.area === a.id)) chips.push({ id: a.id, name: a.name })
+  return chips
+}
+
+export function buildHome(topics: Topic[], depth: Depth, myAreas: string[], filter = 'all') {
+  const feed = applyFilter(feedFor(topics, depth), filter).sort((a, b) => score(b) - score(a))
+  // Rotating hero: the most important fresh stories (last 48h when possible).
+  const fresh = feed.filter((s) => s.hoursAgo <= 48 && s.label !== 'rumor')
+  const heroes = (fresh.length >= 3 ? fresh : feed).slice(0, 5)
+  const rest = feed.filter((s) => !heroes.includes(s))
+  const must = rest.filter((s) => s.importance === 3 && s.label !== 'rumor').slice(0, 4)
+
+  const rows: HomeRow[] = []
+  // Relevance: areas you picked count most, then importance, then freshness.
+  const relevance = (s: Story) =>
+    (myAreas.includes(s.area) ? 150 : 0) + (topics[0] === s.topic ? 20 : 0) + s.importance * 60 - s.hoursAgo
+  rows.push({
+    id: 'relevant',
+    title: 'Most relevant for you',
+    subtitle: 'Based on your topics and areas',
+    items: [...rest].sort((a, b) => relevance(b) - relevance(a)),
+  })
+  rows.push({ id: 'latest', title: 'Latest', subtitle: 'Newest first', items: [...rest].sort(newest) })
+  rows.push({
+    id: 'trending-now',
+    title: 'Trending right now',
+    subtitle: 'Most covered in the last 24 hours',
+    items: rest.filter((s) => s.hoursAgo <= 24).sort((a, b) => b.mergedCount - a.mergedCount || a.hoursAgo - b.hoursAgo),
+  })
   rows.push({
     id: 'trending',
-    title: 'Trending now',
-    subtitle: 'What everyone is talking about, checked',
-    items: [...rest].sort((a, b) => b.trending - a.trending).slice(0, 8),
+    title: 'Most talked about this week',
+    subtitle: 'Covered by the most outlets and communities',
+    items: [...rest].sort((a, b) => b.mergedCount - a.mergedCount || b.trending - a.trending),
   })
-  const because = rest.filter((s) => areas.includes(s.area))
-  if (because.length)
-    rows.push({ id: 'because', title: 'Because you follow', subtitle: 'Based on the areas you picked', items: because })
-  for (const t of topics) {
-    if (t === 'ai') continue
-    const items = feed.filter((s) => s.topic === t && s !== hero)
-    if (items.length)
-      rows.push({
-        id: t,
-        title: topicInfo[t].name,
-        subtitle: t === 'tesla' || t === 'markets' ? 'What happened. No buy or sell calls.' : undefined,
-        items,
-      })
-  }
+  rows.push({
+    id: 'official',
+    title: 'Official only',
+    subtitle: 'Straight from the company, a regulator or a paper',
+    items: rest.filter((s) => s.label === 'official').sort(newest),
+  })
+  // One row per area, unless the page is already filtered to a single area.
+  if (filter === 'all' || filter in topicInfo)
+    for (const t of topics) {
+      if (filter !== 'all' && filter !== t) continue
+      for (const a of areas[t] ?? []) {
+        const items = rest.filter((s) => s.topic === t && s.area === a.id).sort(newest)
+        if (items.length >= 2)
+          rows.push({
+            id: `area-${a.id}`,
+            title: t === 'tesla' ? `Tesla: ${a.name}` : a.name,
+            subtitle: t === 'tesla' ? 'What happened. No buy or sell calls.' : a.desc,
+            items,
+          })
+      }
+    }
+  rows.push({
+    id: 'rumors',
+    title: 'Rumor watch',
+    subtitle: 'Not confirmed yet. Read with care.',
+    items: rest.filter((s) => s.label === 'rumor').sort(newest),
+  })
+  rows.push({
+    id: 'earlier',
+    title: 'Earlier this week',
+    subtitle: 'In case you missed it',
+    items: rest.filter((s) => s.hoursAgo >= 48).sort((a, b) => score(b) - score(a)),
+  })
 
-  return {
-    hero,
-    must: rest.filter((s) => s.importance === 3 && s.label !== 'rumor').slice(0, 4),
-    rows: rows.filter((r) => r.items.length > 0),
-  }
+  return { heroes, must, rows: rows.filter((r) => r.items.length > 0), total: feed.length }
 }
 
 export function timeAgo(h: number) {
@@ -52,3 +112,55 @@ export function timeAgo(h: number) {
 
 export const today = () =>
   new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+
+// The daily brief: the 6 most important confirmed stories (shared by Home's banner and the Brief page).
+export function briefItems(topics: Topic[]) {
+  const ranked = feedFor(topics, 'balanced')
+    .filter((s) => s.label !== 'rumor')
+    .sort((a, b) => b.importance - a.importance || b.mergedCount - a.mergedCount || a.hoursAgo - b.hoursAgo)
+  return onePerThread(ranked, getStories()).slice(0, 6)
+}
+
+/* ---------- The daily issue ---------- */
+
+// Issue No. 1 came out on launch day; one issue per calendar day after that.
+const LAUNCH = new Date(2026, 10, 9)
+export function issueNo(d = new Date()) {
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  return Math.max(1, Math.round((day.getTime() - LAUNCH.getTime()) / 86400_000) + 1)
+}
+export const issueDate = (d = new Date()) =>
+  d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' })
+
+// Evening runs from 19:00 until 06:00 on the reader's own clock.
+export const isEvening = (d = new Date()) => d.getHours() >= 19 || d.getHours() < 6
+
+export const ISSUE_SIZE = 5
+
+// The lead carries the page: if it has no picture, swap in an equally important story that has one.
+function pictureFirst(issue: Story[]) {
+  const has = (s: Story) => !!s.photo || !!s.ownImage
+  if (!issue.length || has(issue[0])) return issue
+  const i = issue.findIndex((s) => has(s) && s.importance === issue[0].importance)
+  if (i <= 0) return issue
+  return [issue[i], ...issue.filter((_, j) => j !== i)]
+}
+
+// Today's issue: the most important confirmed stories of the last day (two days if the day was quiet).
+// `quiet` is true when nothing new came in the last 48 hours; the issue then shows the latest stories instead.
+export function todayIssue(feed: Story[]): { issue: Story[]; quiet: boolean } {
+  // One story per developing event, so a busy news day isn't five versions of the same thing.
+  const ranked = onePerThread(
+    feed
+      .filter((s) => s.label !== 'rumor')
+      .sort((a, b) => b.importance - a.importance || b.mergedCount - a.mergedCount || a.hoursAgo - b.hoursAgo),
+    getStories(),
+  )
+  const day = ranked.filter((s) => s.hoursAgo <= 24)
+  const two = ranked.filter((s) => s.hoursAgo <= 48)
+  if (day.length >= 3) return { issue: pictureFirst(day.slice(0, ISSUE_SIZE)), quiet: false }
+  if (two.length >= 3) return { issue: pictureFirst(two.slice(0, ISSUE_SIZE)), quiet: false }
+  const latest = onePerThread([...feed], getStories()).filter((s) => s.label !== 'rumor').sort((a, b) => a.hoursAgo - b.hoursAgo).slice(0, 12)
+  latest.sort((a, b) => b.importance - a.importance || b.mergedCount - a.mergedCount)
+  return { issue: latest.slice(0, ISSUE_SIZE), quiet: true }
+}

@@ -1,5 +1,16 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { Depth, Topic } from '../data/types'
+import type { Depth, Label, Story, Topic } from '../data/types'
+
+export type Theme = 'auto' | 'light' | 'dark'
+/** What a story looked like when you last read it (for "Since you read this"). */
+export interface Snap {
+  at: number
+  sources: number
+  label: Label
+  title: string
+  takeaways: string[]
+}
+export const snapOf = (s: Story): Snap => ({ at: Date.now(), sources: s.mergedCount, label: s.label, title: s.title, takeaways: s.takeaways })
 
 export interface Prefs {
   onboarded: boolean
@@ -12,6 +23,11 @@ export interface Prefs {
   email: string | null
   briefTime: string | null
   signupDismissed: boolean
+  theme: Theme
+  snaps: Record<string, Snap>
+  /** start of your previous visit (ms); stories newer than this count as new */
+  prevVisit: number | null
+  lastVisit: number | null
 }
 
 const defaults: Prefs = {
@@ -25,6 +41,10 @@ const defaults: Prefs = {
   email: null,
   briefTime: null,
   signupDismissed: false,
+  theme: 'auto',
+  snaps: {},
+  prevVisit: null,
+  lastVisit: null,
 }
 
 const KEY = 'unhyped.prefs.v2'
@@ -36,7 +56,12 @@ function load(): Prefs {
     const p = { ...defaults, ...JSON.parse(raw) } as Prefs
     // Only launch topics (AI, Tesla) are live; drop older picks.
     const topics = p.topics.filter((t) => t === 'ai' || t === 'tesla')
-    return { ...p, topics: topics.length ? topics : ['ai'] }
+    // A new visit starts after 30 minutes away: remember when the last one began.
+    const now = Date.now()
+    const visit = !p.lastVisit || now - p.lastVisit > 30 * 60_000 ? { prevVisit: p.lastVisit, lastVisit: now } : { lastVisit: now }
+    // Keep the read snapshots small: only the last 14 days.
+    const snaps = Object.fromEntries(Object.entries(p.snaps ?? {}).filter(([, v]) => now - v.at < 14 * 86400_000))
+    return { ...p, ...visit, snaps, topics: topics.length ? topics : ['ai'] }
   } catch {
     return defaults
   }
@@ -47,6 +72,7 @@ interface Ctx {
   update: (p: Partial<Prefs>) => void
   toggleSave: (id: string) => boolean
   markRead: (id: string) => void
+  remember: (s: Story) => void
   reset: () => void
 }
 
@@ -78,10 +104,17 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   const markRead = (id: string) =>
     setPrefs((cur) => (cur.read.includes(id) ? cur : { ...cur, read: [...cur.read, id] }))
 
+  const remember = (st: Story) =>
+    setPrefs((cur) => ({
+      ...cur,
+      read: cur.read.includes(st.id) ? cur.read : [...cur.read, st.id],
+      snaps: { ...cur.snaps, [st.id]: snapOf(st) },
+    }))
+
   const reset = () => setPrefs(defaults)
 
   return (
-    <PrefsCtx.Provider value={{ prefs, update, toggleSave, markRead, reset }}>{children}</PrefsCtx.Provider>
+    <PrefsCtx.Provider value={{ prefs, update, toggleSave, markRead, remember, reset }}>{children}</PrefsCtx.Provider>
   )
 }
 

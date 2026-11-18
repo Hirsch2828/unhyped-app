@@ -31,7 +31,7 @@
 | `sources` | name, url (RSS), tier: official / news / signal, topic: ai / tesla, active, keywords, fail_count, last_fetched_at, last_error | איסוף, תווית |
 | `articles` | source_id, url (ייחודי), title, summary, published_at, topic, story_id, processed_at | איחוד, מקורות בדף הסיפור |
 | `stories` | topic, area, label, importance 1–3, status: draft / pending_review / published / rejected, title, dek, takeaways, why_it_matters, what_happened, market_reaction, claims, change_note, image_id, article_count, needs_rewrite, published_at | Home, Story, Brief, Editor |
-| `images` | path, topic, tags, alt | תמונה לסיפור |
+| `images` | path, topic, tags, alt. תגיות: `ai` (צויר ב-AI, מוצגת תגית Illustration), `generated` (התמונה של סיפור מסוים), `library` (מאגר גיבוי לפי תחום), `superseded` (לא בשימוש) | תמונה לסיפור |
 | `briefs` | brief_date (ייחודי), story_ids | Brief |
 | `profiles` | user_id, topics, depth, brief_time, timezone, reminder, email_brief, role: user / editor | Preferences, הרשאת עורך |
 | `saved` | user_id, story_id | Saved (משתמש רשום) |
@@ -59,6 +59,7 @@
 |---|---|---|
 | RSS של המקורות | `ingest`, עם User-Agent קבוע. עד 8 כתבות חדשות למקור בכל סבב, סינון לפי keywords, וכיבוי אוטומטי אחרי 12 כישלונות ברצף | כל 15 דקות |
 | Gemini | `process`, `build-brief` | :05 ו-:35 בכל שעה, ותדריך ב-05:00 UTC |
+| Cloudflare Workers AI (FLUX.1 schnell) | `make-images`: Gemini כותב תיאור סצנה בלי שמות ופנים, Cloudflare מצייר, מקטינים ל-800×600 (~50KB) ושומרים ב-bucket `images`. עד 4 תמונות בסבב, עד 70 ביום | כל 10 דקות (:02, :12...) |
 | GitHub → Vercel | כל push ל-main בונה ומעלה את האתר | בכל push |
 | Resend (מתוכנן) | שליחת תדריך במייל | Milestone עתידי |
 
@@ -69,6 +70,7 @@
 | `SUPABASE_SERVICE_ROLE_KEY` | זמין אוטומטית ל-Edge Functions | לא |
 | סוד ה-cron | `private.config`, נבדק עם `check_cron_secret` (רק service_role) | לא |
 | כתובת Supabase + מפתח ציבורי (publishable) | בקוד הלקוח ו/או `VITE_SUPABASE_URL`, `VITE_SUPABASE_KEY` | כן, וזה בסדר: RLS מגן על הטבלאות |
+| `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Secrets של Edge Functions (אורי הזין בדשבורד) | לא |
 | `RESEND_API_KEY` (עתידי) | Secrets של Edge Functions | לא |
 
 אין מפתח סודי בריפו. `.env` ב-`.gitignore`, ו-`.env.example` מכיל רק שמות.
@@ -126,3 +128,23 @@ spec/                       המסמכים האלה, התמונות ו-plans/
 **Context:** לטסלה אין פיד RSS רשמי, ולרוב אתרי החדשות הגדולים (CNBC, NYT, BBC, Axios) אין פיד נפרד ל-AI.
 **Decision:** עמודה `keywords` במקורות. כשהיא מלאה, נשמרות רק כתבות שהכותרת או התקציר שלהן מכילים אחת המילים. המקור הרשמי לטסלה הוא הדיווחים שלה לרשות ניירות הערך האמריקאית (SEC, טופס 8-K).
 **Consequences:** יותר מקורות איכותיים בלי כתבות לא קשורות. מילה כללית מדי (למשל "ai") עלולה להכניס כתבה לא רלוונטית מדי פעם. דיווחי SEC נדירים, ולכן התווית Official בטסלה תופיע רק לפעמים.
+
+### ADR-7: איור AI לכל סיפור עם Cloudflare Workers AI
+**Context:** אורי רצה תמונה לכל סיפור, בחינם. מודלי התמונה של Gemini בתשלום, ול-ChatGPT החינמי אין API.
+**Decision:** פונקציה `make-images` שקוראת ל-Cloudflare Workers AI (FLUX.1 schnell) במכסה החינמית (10,000 יחידות ביום). בפועל ביום הראשון המכסה הספיקה לכ-80 תמונות, ולכן התקרה 70 ביום. רק איורים: בלי פנים של אנשים אמיתיים, בלי לוגואים ובלי טקסט, ותגית "Illustration" באתר. מאגר גיבוי של כ-4 איורים לכל תחום, ו-`process` נותן לסיפור חדש תמונה מהמאגר עד שהאיור שלו מוכן.
+**Consequences:** כל סיפור מקבל תמונה ייחודית תוך כ-10 דקות, בלי עלות. התמונה מוקטנת בשרת (jpeg-js), ולכן כל סבב מוגבל ל-4 תמונות כדי לא לעבור את מגבלת המעבד של Edge Function. 1GB חינמי מספיק לכ-20,000 תמונות. לפני שנגיע לשם צריך להחליט על מחיקת תמונות ישנות.
+
+### ADR-8: לוחות שנוצרים בקוד במקום תמונות, ושכבת "העשרה" נפרדת
+**Context:** בכיוון העיצוב A (Milestone 5ג) אין צילומים. איורי ה-AI (Cloudflare) נתקעו במכסה היומית, ותמונות חסרות או חוזרות פגעו במראה. רגעי החתימה צריכים מידע נוסף על כל סיפור: הכותרת המפוצצת, ביטוי למרקר, שאלות פתוחות ועמדת כל מקור.
+**Decision:** כל סיפור מקבל "לוח" שנוצר בדפדפן (נקודות וסימן מתוך הסיפור), בלי קובץ תמונה. ב-`process` נוסף שלב שלישי, "העשרה": קריאת AI קצרה לכל סיפור שפורסם, שבוחרת כותרת מפוצצת מתוך כותרות המקורות (מועתקת מילה במילה), ביטוי מתוך הכותרת שלנו, שאלות פתוחות ועמדות מקורות. השרת בודק שהכותרת אמיתית והביטוי באמת מופיע בכותרת. שורת הסטטוס ו-"Since you read this" מחושבים בכלל, בטלפון, בלי AI.
+**Consequences:** עלות 0, אין תמונה חסרה. עמודות חדשות ב-`stories`: `hype_title`, `hype_source`, `highlight`, `uncertain`, `source_notes`, `enriched_at`. עד 10 קריאות AI נוספות בכל ריצה. `make-images` יושהה כשהעיצוב יעלה לאתר הראשי (עד אז האתר הראשי עדיין מציג איורים). ה-Delta נשמר רק בטלפון, ולכן לא עובר בין מכשירים.
+
+### ADR-9: קישור שיתוף `/s/<id>` עם פונקציית Vercel קטנה
+**Context:** האתר עובד עם כתובות `#/story/<id>`. וואטסאפ, טוויטר ולינקדאין לא רואים מה שאחרי ה-`#`, ולכן כל סיפור ששותף הציג את אותה תצוגה מקדימה כללית.
+**Decision:** כפתור השיתוף שולח כתובת `/s/<id>`. ב-`vercel.json` יש הפניה מ-`/s/:id` אל `api/share.js`, פונקציה קטנה שקוראת את הכותרת והתקציר של הסיפור מ-Supabase (במפתח הציבורי), מחזירה דף עם תגיות OG, ומעבירה את הקורא מיד ל-`/#/story/<id>`. אם הסיפור לא נמצא, מוצגת תצוגה כללית (`og.png`).
+**Consequences:** לכל סיפור יש תצוגה מקדימה משלו בלי לעבור לשרת מלא או לשנות את הניתוב באפליקציה. קריאה אחת ל-Supabase לכל פתיחת קישור (עם מטמון של 10 דקות). הכתובות הישנות עם `#` ממשיכות לעבוד.
+
+### ADR-10: כללי תוכן אוטומטיים ו"אירוע אחד = סיפור אחד"
+**Context:** סיפורים חזרו על אותו אירוע (כמה סיפורי Nvidia באותו גיליון), וחלק מהטקסטים כללו מילות הייפ, כותרות ארוכות או "למה זה חשוב" כללי.
+**Decision:** ב-`_shared/rules.ts` יש בדיקות קבועות (מילות הייפ, כותרת עד 80 תווים, עד 2 משפטים ב"למה זה חשוב", מקור אחד לפחות, בלי ניסוח של ייעוץ השקעות על Tesla). סיפור שנכשל נכתב מחדש פעם אחת; אם הוא עדיין נכשל הוא עובר לתור העורך. באפליקציה, סיפורים שחולקים שמות בכותרת בתוך 72 שעות מקובצים ל"שרשור": בגיליון מופיע רק הראשי, והשאר תחת "Developing story".
+**Consequences:** בלי עמודות חדשות במסד. הקיבוץ נעשה בדפדפן ולכן יכול לטעות לפעמים (שני אירועים שונים עם אותם שמות). פונקציית `process` המעודכנת צריכה פריסה ל-Supabase כדי שהכללים יפעלו על סיפורים חדשים.

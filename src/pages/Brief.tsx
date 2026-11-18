@@ -1,142 +1,182 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Clock, FileText, Layers, Lightbulb } from 'lucide-react'
-import { feedFor, today } from '../lib/feed'
+import { ArrowLeft, ArrowRight, X } from 'lucide-react'
+import { briefItems, feedFor, issueNo } from '../lib/feed'
 import { useStories } from '../lib/stories'
 import { usePrefs } from '../lib/prefs'
-import { topicInfo } from '../data/topics'
-import { ArrowCircle, Img, LabelTag, TopicPill } from '../components/ui'
+import type { Story } from '../data/types'
+import { CategoryBadge, CompactRow, Headline, Photo, TrustMark, plural } from '../components/ui'
+import { LastPage } from './Home'
+import { statusLine } from './StoryPage'
+
+const VIEW = 'unhyped.brief.view'
 
 export default function Brief() {
   const { prefs } = usePrefs()
   useStories()
-  const items = feedFor(prefs.topics, 'balanced')
-    .filter((s) => s.label !== 'rumor')
-    .sort((a, b) => b.importance - a.importance || a.hoursAgo - b.hoursAgo)
-    .slice(0, 6)
-  const rumors = feedFor(prefs.topics, 'everything').filter((s) => s.label === 'rumor')
-  const [progress, setProgress] = useState(0)
-
-  useEffect(() => {
-    const onScroll = () => {
-      const max = document.documentElement.scrollHeight - window.innerHeight
-      setProgress(max > 0 ? Math.min(1, window.scrollY / max) : 1)
+  const items = briefItems(prefs.topics).slice(0, 5)
+  const rumors = feedFor(prefs.topics, 'everything').filter((s) => s.label === 'rumor').slice(0, 4)
+  const [view, setView] = useState<'cards' | 'list'>(() => {
+    try {
+      return localStorage.getItem(VIEW) === 'list' ? 'list' : 'cards'
+    } catch {
+      return 'cards'
     }
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  const top = items[0]
-  const side = items.slice(1, 4)
-  const names = prefs.topics.map((t) => topicInfo[t].name)
+  })
+  const choose = (v: 'cards' | 'list') => {
+    setView(v)
+    try {
+      localStorage.setItem(VIEW, v)
+    } catch {
+      /* storage unavailable */
+    }
+  }
+  const total = items.length + 1 // the last card is the end of the issue
 
   return (
     <div className="fade-in">
-      <div className="sticky top-16 z-20 h-1 bg-sand-200">
-        <div className="h-full bg-forest transition-[width]" style={{ width: `${progress * 100}%` }} />
+      {view === 'cards' ? (
+        <Cards items={items} total={total} onList={() => choose('list')} />
+      ) : (
+        <div className="mx-auto max-w-3xl px-6 pt-4 sm:px-8 sm:pt-8">
+          <div className="flex items-center justify-between border-b-2 border-ink pb-3">
+            <Link to="/" className="press -ml-3 grid h-11 w-11 place-items-center" aria-label="Back to today’s issue">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <span className="t-meta text-ink-soft">Briefing · No. {issueNo()}</span>
+            <button onClick={() => choose('cards')} className="press t-eyebrow min-h-[44px] text-ink-soft hover:text-ink">
+              View as cards
+            </button>
+          </div>
+          <h1 className="t-display mt-5">Today in five minutes</h1>
+          <p className="t-meta mt-2 text-ink-soft">{plural(items.length, 'story', 'stories')} · ~5 min</p>
+          <ol className="mt-6 border-b border-rule">
+            {items.map((s, i) => (
+              <li key={s.id}>
+                <CompactRow story={s} lead={<span className="w-9 shrink-0 font-mono text-[26px] font-semibold leading-[26px] tnum onum">{String(i + 1).padStart(2, '0')}</span>} />
+              </li>
+            ))}
+          </ol>
+          {rumors.length > 0 && (
+            <section className="mt-10 border border-dashed border-ink p-4">
+              <h2 className="t-eyebrow text-ink">Also going around · not confirmed</h2>
+              <ul className="mt-2">
+                {rumors.map((s) => (
+                  <li key={s.id}>
+                    <Link to={`/story/${s.id}`} className="press group flex min-h-[44px] items-baseline gap-3 border-t border-rule py-3 first:border-0">
+                      <TrustMark label="rumor" />
+                      <span className="text-[16px] font-medium leading-[21px] group-hover:underline">{s.title}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          <div className="mb-8 mt-4">
+            <LastPage />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Full-screen cards: swipe sideways, progress on top, the last card ends the issue.
+function Cards({ items, total, onList }: { items: Story[]; total: number; onList: () => void }) {
+  const track = useRef<HTMLDivElement>(null)
+  const [at, setAt] = useState(0)
+  useEffect(() => {
+    const el = track.current
+    if (!el) return
+    const on = () => setAt(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)))
+    el.addEventListener('scroll', on, { passive: true })
+    return () => el.removeEventListener('scroll', on)
+  }, [])
+  const go = (i: number) => {
+    const el = track.current
+    if (!el) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollTo({ left: i * el.clientWidth, behavior: reduce ? 'auto' : 'smooth' })
+  }
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') go(Math.min(total - 1, at + 1))
+      if (e.key === 'ArrowLeft') go(Math.max(0, at - 1))
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [at, total])
+
+  return (
+    <div className="flex h-[calc(100dvh-64px-env(safe-area-inset-bottom))] flex-col sm:h-[calc(100dvh-64px)]">
+      <h1 className="sr-only">Today’s briefing, issue No. {issueNo()}</h1>
+      <div className="mx-auto w-full max-w-3xl px-4 pt-3 sm:px-8">
+        <div className="flex items-center justify-between">
+          <Link to="/" className="press -ml-2 grid h-11 w-11 place-items-center" aria-label="Close briefing">
+            <X className="h-5 w-5" />
+          </Link>
+          <span className="t-meta text-ink" aria-live="polite">
+            {Math.min(at + 1, total)} of {total}
+          </span>
+          <button onClick={onList} className="press t-eyebrow min-h-[44px] px-1 text-ink-soft hover:text-ink">
+            View as list
+          </button>
+        </div>
+        <div className="mt-1 flex gap-1" aria-hidden>
+          {Array.from({ length: total }, (_, i) => (
+            <span key={i} className={`h-[5px] flex-1 ${i === at ? 'bg-lime ring-1 ring-ink' : i < at ? 'bg-ink' : 'bg-ink/15'}`} />
+          ))}
+        </div>
       </div>
 
-      <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-8">
-        <div className="grid items-center gap-8 md:grid-cols-[1fr_1.1fr]">
-          <div>
-            <p className="text-sm uppercase tracking-[0.18em] text-charcoal-500">Your</p>
-            <h1 className="font-serif text-5xl font-semibold leading-[1.02] sm:text-6xl">5-Minute Briefing</h1>
-            <p className="mt-4 text-lg leading-snug text-charcoal-500">
-              The {items.length} most important developments in your areas today, in context.
-            </p>
-            <div className="mt-6 grid grid-cols-3 gap-2">
-              {[
-                { icon: FileText, a: `${items.length}`, b: 'stories' },
-                { icon: Clock, a: '~5 min', b: 'read' },
-                { icon: Layers, a: names.slice(0, 2).join(', '), b: names.length > 2 ? 'and more' : 'topics' },
-              ].map((x) => (
-                <div key={x.b} className="flex items-center gap-2 rounded-xl border border-sand-300/70 bg-sand-50 p-3">
-                  <x.icon className="h-5 w-5 shrink-0 text-charcoal-500" strokeWidth={1.5} />
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold">{x.a}</span>
-                    <span className="block text-xs text-charcoal-400">{x.b}</span>
-                  </span>
-                </div>
-              ))}
+      <div ref={track} className="no-scrollbar mt-3 flex flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden" aria-label="Briefing cards">
+        {items.map((s, i) => (
+          <section key={s.id} className="flex h-full w-full shrink-0 snap-start snap-always flex-col overflow-y-auto px-6 pb-4 sm:px-8" aria-label={`Story ${i + 1} of ${items.length}`}>
+            <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
+              <div className="flex items-baseline gap-3 border-t-2 border-ink pt-3">
+                <span className="font-mono text-[34px] font-semibold leading-none tnum onum">{String(i + 1).padStart(2, '0')}</span>
+                <CategoryBadge story={s} />
+              </div>
+              <Photo story={s} className="mt-4 aspect-[16/9] max-h-[38vh] w-full" />
+              <h2 className="t-h1 mt-4 text-[30px] leading-[32px] sm:text-[38px] sm:leading-[40px]">
+                <Headline story={s} mark />
+              </h2>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <TrustMark label={s.label} />
+                <span className="text-[14px] leading-[20px] text-ink-soft">{statusLine(s)}</span>
+              </div>
+              <div className="mt-5 border-t border-rule pt-3">
+                <p className="text-[14px] font-bold">Why it matters</p>
+                <p className="mt-1.5 text-[17px] font-medium leading-[25px]">{s.whyItMatters}</p>
+              </div>
+              <div className="flex-1" />
+              <Link to={`/story/${s.id}`} className="press mt-4 flex min-h-[48px] items-center justify-between bg-ink px-4 text-paper">
+                <span className="t-eyebrow">Read more</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </section>
+        ))}
+        <section className="flex h-full w-full shrink-0 snap-start snap-always flex-col justify-center pb-6" aria-label="End of the issue">
+          <div className="mx-auto w-full max-w-3xl">
+            <div className="px-6 sm:px-8"><LastPage compact /></div>
+            <div className="mx-6 mt-6 sm:mx-8">
+              <Link to="/" className="press flex min-h-[48px] items-center justify-between border-2 border-ink px-4">
+                <span className="t-eyebrow">Back to the issue</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           </div>
+        </section>
+      </div>
 
-          {top && (
-            <div className="relative hidden h-[360px] md:block">
-              <span className="absolute left-8 top-4 h-24 w-28 rounded-2xl bg-forest/80" />
-              <span className="absolute -right-2 top-0 h-16 w-20 rounded-xl bg-terra" />
-              <Link to={`/story/${top.id}`} className="group absolute left-14 top-8 z-10 h-[320px] w-[270px] overflow-hidden rounded-3xl shadow-xl">
-                <Img src={top.image} className="h-full w-full" />
-                <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
-                <span className="absolute inset-x-0 bottom-0 flex items-end gap-3 p-4 text-white">
-                  <span>
-                    <span className="block text-[11px] uppercase tracking-wider text-white/80">Top story</span>
-                    <span className="mt-1 block font-serif text-xl font-semibold leading-tight">{top.title}</span>
-                  </span>
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-forest">→</span>
-                </span>
-              </Link>
-              <div className="absolute right-0 top-14 flex flex-col gap-3">
-                {side.map((s) => (
-                  <Img key={s.id} src={s.image} className="h-24 w-32 rounded-2xl shadow-md" />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <p className="mt-8 text-sm text-charcoal-400">{today()}</p>
-        <ol className="relative mt-4 border-t border-sand-300/70 pt-6">
-          <span className="absolute bottom-6 left-[13px] top-10 w-px bg-sand-300 sm:left-[15px]" aria-hidden />
-          {items.map((s, i) => (
-            <li key={s.id} className="relative mb-6 flex gap-3 border-b border-sand-300/50 pb-6 last:border-0 sm:gap-5">
-              <span className="z-10 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-forest text-sm text-sand-50 sm:h-8 sm:w-8">{i + 1}</span>
-              <Link to={`/story/${s.id}`} className="group flex min-w-0 flex-1 flex-col gap-4 sm:flex-row">
-                <Img src={s.image} className="h-40 w-full shrink-0 rounded-2xl sm:h-36 sm:w-48" />
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2 text-sm text-charcoal-400">
-                    <TopicPill topic={s.topic} /> {s.time} · <LabelTag label={s.label} />
-                  </span>
-                  <span className="mt-2 block font-serif text-2xl font-semibold leading-snug">{s.title}</span>
-                  <span className="mt-1 block text-charcoal-500">{s.dek}</span>
-                  <span className="mt-3 flex gap-3 rounded-xl bg-sand-200/70 p-3 text-sm">
-                    <Lightbulb className="h-5 w-5 shrink-0 text-honey" strokeWidth={1.5} />
-                    <span>
-                      <b className="font-semibold">Why it matters: </b>
-                      <span className="text-charcoal-500">{s.whyItMatters}</span>
-                    </span>
-                  </span>
-                </span>
-                <span className="hidden self-center sm:block">
-                  <ArrowCircle />
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ol>
-
-        {rumors.length > 0 && (
-          <section className="rounded-2xl border border-honey/30 bg-honey-100/50 p-5">
-            <h2 className="font-serif text-xl font-semibold">You may also see this today</h2>
-            <p className="mt-1 text-sm text-charcoal-500">Unconfirmed. Listed so you know not to take it as fact.</p>
-            <ul className="mt-4 space-y-3">
-              {rumors.map((s) => (
-                <li key={s.id}>
-                  <Link to={`/story/${s.id}`} className="flex items-start gap-3 hover:underline">
-                    <span className="shrink-0 text-sm"><LabelTag label="rumor" /></span>
-                    <span>{s.title}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <div className="my-14 text-center">
-          <p className="font-serif text-3xl font-semibold">That’s everything.</p>
-          <p className="mt-1 text-charcoal-500">You’re up to date. See you tomorrow.</p>
-        </div>
+      <div className="mx-auto hidden w-full max-w-3xl justify-between px-8 pb-4 sm:flex">
+        <button onClick={() => go(Math.max(0, at - 1))} disabled={at === 0} className="press t-eyebrow min-h-[44px] disabled:opacity-30">
+          ← Previous
+        </button>
+        <button onClick={() => go(Math.min(total - 1, at + 1))} disabled={at >= total - 1} className="press t-eyebrow min-h-[44px] disabled:opacity-30">
+          Next →
+        </button>
       </div>
     </div>
   )
