@@ -8,6 +8,11 @@ const MAX_PER_SOURCE = 8
 // Switch a source off after this many failed runs in a row (12 runs = 3 hours).
 const MAX_FAILS = 12
 
+// An AI-outlet article with Nvidia in its headline belongs on the Nvidia row.
+export function topicFor(sourceTopic: string, title: string): string {
+  return sourceTopic === 'ai' && /\bnvidia\b/i.test(title) ? 'nvidia' : sourceTopic
+}
+
 // Whole-word, case-insensitive match against any keyword. Empty list = keep everything.
 function keywordFilter(words: string[] | null) {
   if (!words?.length) return () => true
@@ -45,7 +50,7 @@ Deno.serve(async (req) => {
             title: i.title.slice(0, 400),
             summary: i.summary,
             published_at: i.publishedAt,
-            topic: s.topic,
+            topic: topicFor(s.topic, i.title),
             image_url: i.image?.slice(0, 1000) ?? null,
           }))
         if (items.length) {

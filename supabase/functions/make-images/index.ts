@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
   const { data, error } = await sb
     .from('stories')
     .select('id, title, dek, topic, area, images(tags)')
-    .in('status', ['published', 'pending_review'])
+    .eq('status', 'published')
     .gte('last_article_at', since)
     .order('importance', { ascending: false })
     .order('last_article_at', { ascending: false })

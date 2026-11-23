@@ -75,12 +75,14 @@ export function parseFeed(xml: string, maxItems = 30): FeedItem[] {
   const rss = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) ?? []
   for (const b of rss) {
     const link = stripHtml(tag(b, 'link')) || stripHtml(tag(b, 'guid'))
-    const title = stripHtml(tag(b, 'title'))
+    const summary = stripHtml(tag(b, 'description') || tag(b, 'content:encoded')).slice(0, 1200)
+    // Social posts (e.g. Bluesky feeds) have no title: use the start of the post instead.
+    const title = stripHtml(tag(b, 'title')) || summary.slice(0, 200)
     if (!link || !title) continue
     items.push({
       url: link,
       title,
-      summary: stripHtml(tag(b, 'description') || tag(b, 'content:encoded')).slice(0, 1200),
+      summary,
       publishedAt: toIso(tag(b, 'pubDate') || tag(b, 'dc:date')),
       image: findImage(b),
     })

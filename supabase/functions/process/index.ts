@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
     try {
       const prompt = writePrompt(
           story.topic,
-          AREAS[story.topic],
+          (AREAS[story.topic] ?? []),
           arts.map((a, i) => ({
             id: `a${i + 1}`,
             // deno-lint-ignore no-explicit-any
@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
           })),
         )
       let w = await generateJSON<Written>({ system: WRITE_SYSTEM, prompt })
-      // Writing rules are checked by code. One rewrite with the problems listed; if it still fails, a person reviews it.
+      // Writing rules are checked by code. One rewrite with the problems listed; if it still fails, the story stays a draft.
       let problems = copyProblems({ ...w, title: clean(w.title), why_it_matters: clean(w.why_it_matters), dek: clean(w.dek) }, story.topic)
       if (problems.length && timeLeft()) {
         w = await generateJSON<Written>({ system: WRITE_SYSTEM, prompt: `${prompt}\n\nYour previous draft broke these rules. Rewrite it so none apply:\n- ${problems.join('\n- ')}` })
@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
         .map((c) => ({ text: c.text, article_ids: (c.article_ids ?? []).map((x) => ids.get(x)).filter(Boolean) }))
         .filter((c) => c.text && c.article_ids.length)
       const importance = clampImportance(w.importance, label)
-      const area = AREAS[story.topic].includes(w.area) ? w.area : null
+      const area = (AREAS[story.topic] ?? []).includes(w.area) ? w.area : null
       // Bull and bear keep only arguments that cite a real article.
       const side = (xs: Written['bull']) => (xs ?? [])
         .map((x) => ({ text: clean(x.text), article_ids: (x.article_ids ?? []).map((a) => ids.get(a)).filter(Boolean) }))
@@ -185,9 +185,11 @@ Deno.serve(async (req) => {
       const watch = (w.watch_next ?? [])
         .map((x) => ({ when: /^\d{4}-\d{2}-\d{2}$/.test(String(x.when ?? '')) ? x.when : null, what: clean(x.what) }))
         .filter((x) => x.what).slice(0, 3)
-      // A story already approved by the editor stays published when it gets new articles.
-      const status = problems.length && story.status !== 'published' ? 'pending_review' : story.status === 'published' ? 'published' : statusFor(importance, label)
-      if (problems.length) log.push(`held ${story.id} for review: ${problems.join(' | ')}`)
+      // Truth rule first; a live story that breaks a writing rule on an update stays live, a new one stays a draft.
+      const trusted = statusFor(tiers) === 'published'
+      const status = !trusted || (problems.length && story.status !== 'published') ? 'draft' : 'published'
+      if (!trusted) log.push(`kept ${story.id} as draft: discovery sources only`)
+      else if (problems.length) log.push(`kept ${story.id} as draft: ${problems.join(' | ')}`)
       const image_id = story.image_id ?? (await pickImage(sb, story.topic, area))
 
       await sb.from('stories').update({

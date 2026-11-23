@@ -18,9 +18,11 @@ export function changeNote(prev: Label | null, next: Label): string | null {
   return null
 }
 
-// Score 3 stories wait for a human editor. Rumors are never top-importance.
-export function statusFor(importance: number, label: Label): 'published' | 'pending_review' {
-  return importance >= 3 && label !== 'rumor' ? 'pending_review' : 'published'
+// Truth rule: a story goes live only when at least one article comes from an official source or an approved
+// news outlet. Discovery sources (fan blogs, Hacker News) can start a story but never publish it alone.
+// There is no human editor in the flow.
+export function statusFor(tiers: Tier[]): 'published' | 'draft' {
+  return tiers.some((t) => t === 'official' || t === 'news') ? 'published' : 'draft'
 }
 
 export function clampImportance(n: unknown, label: Label): 1 | 2 | 3 {
@@ -30,7 +32,7 @@ export function clampImportance(n: unknown, label: Label): 1 | 2 | 3 {
 }
 
 // ---------- Writing rules, checked by code before a story goes out ----------
-// A story that breaks one is rewritten once with the problems listed; if it still breaks one, a person reviews it.
+// A story that breaks one is rewritten once with the problems listed; if it still breaks one, it stays a draft.
 
 export const HYPE_WORDS = [
   'revolutionary', 'revolutionize', 'game-changer', 'game changer', 'game-changing', 'groundbreaking', 'unprecedented',

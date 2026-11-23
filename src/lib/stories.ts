@@ -23,13 +23,15 @@ export const findStory = (id: string) => state.stories.find((s) => s.id === id) 
 // Stories older than the 7-day window (saved long ago, or opened from a shared link). Kept apart so they
 // never leak into today's feed.
 const older = new Map<string, Story>()
+// Only these topics are live for now; stories from paused sector sources stay in the database but never load.
+const LIVE_TOPICS = 'in.(ai,tesla,nvidia)'
 const asked = new Set<string>()
 export async function ensureStories(ids: string[]) {
   const missing = ids.filter((id) => !findStory(id) && !asked.has(id) && /^[0-9a-f-]{36}$/.test(id))
   if (!missing.length || state.mode === 'sample') return
   missing.forEach((id) => asked.add(id))
   try {
-    const q = new URLSearchParams({ select: SELECT, status: 'eq.published', id: `in.(${missing.join(',')})` })
+    const q = new URLSearchParams({ select: SELECT, status: 'eq.published', topic: LIVE_TOPICS, id: `in.(${missing.join(',')})` })
     const res = await fetch(`${SUPABASE_URL}/rest/v1/stories?${q}`, { headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}` } })
     if (!res.ok) return
     for (const r of (await res.json()) as Row[]) older.set(r.id, toStory(r))
@@ -168,6 +170,7 @@ export async function loadLive() {
     const q = new URLSearchParams({
       select: SELECT,
       status: 'eq.published',
+      topic: LIVE_TOPICS,
       last_article_at: `gte.${since}`,
       order: 'last_article_at.desc',
       limit: '300',
