@@ -11,6 +11,8 @@ const MAX_ENRICH = Number(Deno.env.get('MAX_ENRICH') ?? 10)
 const MAX_UPGRADES = Number(Deno.env.get('MAX_UPGRADES') ?? 3)
 // 3 = longer story with "What it means for you" and "Who wins, who loses" (23/11).
 const FORMAT = 3
+// Only these topics are live; old sector stories are never rewritten or annotated (saves the free AI quota).
+const LIVE_TOPICS = ['ai', 'tesla', 'nvidia']
 
 // Article ids belong in claims only: strip any "[a1]" / "(a1, a2)" markers from reader-facing text.
 const clean = (t: unknown) =>
@@ -130,7 +132,7 @@ Deno.serve(async (req) => {
   const spare = Math.min(MAX_UPGRADES, MAX_WRITES - (changed?.length ?? 0))
   const { data: older } = spare > 0
     ? await sb.from('stories').select('id, topic, label, status, image_id, published_at')
-      .eq('status', 'published').lt('format', FORMAT).eq('needs_rewrite', false)
+      .eq('status', 'published').lt('format', FORMAT).eq('needs_rewrite', false).in('topic', LIVE_TOPICS)
       .gte('last_article_at', new Date(Date.now() - 7 * 24 * 3600_000).toISOString())
       .order('importance', { ascending: false }).order('last_article_at', { ascending: false }).limit(spare)
     : { data: [] }
@@ -251,6 +253,7 @@ Deno.serve(async (req) => {
     .from('stories')
     .select('id, title, what_happened')
     .eq('status', 'published')
+    .in('topic', LIVE_TOPICS)
     .is('enriched_at', null)
     .gte('last_article_at', new Date(Date.now() - 72 * 3600_000).toISOString())
     .order('last_article_at', { ascending: false })
