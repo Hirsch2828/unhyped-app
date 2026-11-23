@@ -9,7 +9,7 @@ const MAX_ARTICLES = Number(Deno.env.get('MAX_ARTICLES') ?? 25)
 const MAX_WRITES = Number(Deno.env.get('MAX_WRITES') ?? 8)
 const MAX_ENRICH = Number(Deno.env.get('MAX_ENRICH') ?? 10)
 const MAX_UPGRADES = Number(Deno.env.get('MAX_UPGRADES') ?? 3)
-// 3 = longer story with "What it means for you" and "Who wins, who loses" (23/11).
+// 3 = story with "What it means for you" and "Who wins, who loses" (23/11).
 const FORMAT = 3
 // Only these topics are live; old sector stories are never rewritten or annotated (saves the free AI quota).
 const LIVE_TOPICS = ['ai', 'tesla', 'nvidia']
