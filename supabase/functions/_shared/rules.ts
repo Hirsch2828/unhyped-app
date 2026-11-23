@@ -18,9 +18,11 @@ export function changeNote(prev: Label | null, next: Label): string | null {
   return null
 }
 
-// Score 3 stories wait for a human editor. Rumors are never top-importance.
-export function statusFor(importance: number, label: Label): 'published' | 'pending_review' {
-  return importance >= 3 && label !== 'rumor' ? 'pending_review' : 'published'
+// Truth rule: a story goes live only when at least one article comes from an official source or an approved
+// news outlet. Discovery sources (fan blogs, Hacker News) can start a story but never publish it alone.
+// There is no human editor in the flow.
+export function statusFor(tiers: Tier[]): 'published' | 'draft' {
+  return tiers.some((t) => t === 'official' || t === 'news') ? 'published' : 'draft'
 }
 
 export function clampImportance(n: unknown, label: Label): 1 | 2 | 3 {
@@ -30,7 +32,7 @@ export function clampImportance(n: unknown, label: Label): 1 | 2 | 3 {
 }
 
 // ---------- Writing rules, checked by code before a story goes out ----------
-// A story that breaks one is rewritten once with the problems listed; if it still breaks one, a person reviews it.
+// A story that breaks one is rewritten once with the problems listed; if it still breaks one, it stays a draft.
 
 export const HYPE_WORDS = [
   'revolutionary', 'revolutionize', 'game-changer', 'game changer', 'game-changing', 'groundbreaking', 'unprecedented',
@@ -44,7 +46,7 @@ const GENERIC_WHY = [/^this (development|news|move|update|announcement) (highlig
 
 export const MAX_TITLE = 80
 
-export interface Copy { title: string; dek: string; why_it_matters: string; takeaways?: string[]; claims?: { article_ids?: unknown[] }[]; why_company?: string | null; why_stock?: string | null; bull?: { text?: string }[]; bear?: { text?: string }[] }
+export interface Copy { title: string; dek: string; why_it_matters: string; takeaways?: string[]; claims?: { article_ids?: unknown[] }[]; why_company?: string | null; why_stock?: string | null; bull?: { text?: string }[]; bear?: { text?: string }[]; extra?: string }
 
 const sentences = (s: string) => s.split(/(?<=[.!?])\s+(?=[A-Z0-9"“])/).filter((x) => x.trim().length > 0)
 
@@ -59,7 +61,7 @@ export function copyProblems(c: Copy, topic: string): string[] {
   const out: string[] = []
   const text = `${c.title} ${c.dek} ${c.why_it_matters} ${(c.takeaways ?? []).join(' ')}`
   // Everything about the company or its stock is checked for advice wording, whatever the topic.
-  const money = `${text} ${c.why_company ?? ''} ${c.why_stock ?? ''} ${[...(c.bull ?? []), ...(c.bear ?? [])].map((x) => x.text ?? '').join(' ')}`
+  const money = `${text} ${c.why_company ?? ''} ${c.why_stock ?? ''} ${[...(c.bull ?? []), ...(c.bear ?? [])].map((x) => x.text ?? '').join(' ')} ${c.extra ?? ''}`
   if (!c.title.trim()) out.push('The title is empty.')
   if (c.title.length > MAX_TITLE) out.push(`The title is ${c.title.length} characters; keep it under ${MAX_TITLE}.`)
   if (isTitleCase(c.title)) out.push('The title is in Title Case; use sentence case (capitalise only the first word and names).')

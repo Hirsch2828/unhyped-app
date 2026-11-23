@@ -9,10 +9,17 @@ const MAX_ARTICLES = Number(Deno.env.get('MAX_ARTICLES') ?? 25)
 const MAX_WRITES = Number(Deno.env.get('MAX_WRITES') ?? 8)
 const MAX_ENRICH = Number(Deno.env.get('MAX_ENRICH') ?? 10)
 const MAX_UPGRADES = Number(Deno.env.get('MAX_UPGRADES') ?? 3)
+// 3 = longer story with "What it means for you" and "Who wins, who loses" (23/11).
+const FORMAT = 3
+// Only these topics are live; old sector stories are never rewritten or annotated (saves the free AI quota).
+const LIVE_TOPICS = ['ai', 'tesla', 'nvidia']
 
 // Article ids belong in claims only: strip any "[a1]" / "(a1, a2)" markers from reader-facing text.
 const clean = (t: unknown) =>
   String(t ?? '').replace(/\s*[[(]a\d+(?:\s*,\s*a\d+)*[\])]/g, '').replace(/\s+([.,;:])/g, '$1').trim()
+
+// The two newer sections are checked for advice wording like the rest of the money text.
+const extraText = (w: Written) => `${w.for_you ?? ''} ${(w.winners_losers ?? []).map((x) => x.why ?? '').join(' ')}`
 
 interface Enriched {
   hype: string | null; highlight: string; uncertain: string[]
@@ -25,6 +32,8 @@ interface Written {
   why_company?: string | null; why_stock?: string | null; ticker?: string | null
   watch_next?: { when?: string | null; what?: string }[]
   bull?: { text?: string; article_ids?: string[] }[]; bear?: { text?: string; article_ids?: string[] }[]
+  for_you?: string | null
+  winners_losers?: { company?: string; ticker?: string | null; side?: string; why?: string; article_ids?: string[] }[]
 }
 
 Deno.serve(async (req) => {
@@ -119,11 +128,11 @@ Deno.serve(async (req) => {
     .neq('status', 'rejected')
     .order('last_article_at', { ascending: false })
     .limit(MAX_WRITES)
-  // Spare writes upgrade this week's published stories to the fuller format (5h), newest first.
+  // Spare writes upgrade this week's published stories to the current format, most important first.
   const spare = Math.min(MAX_UPGRADES, MAX_WRITES - (changed?.length ?? 0))
   const { data: older } = spare > 0
     ? await sb.from('stories').select('id, topic, label, status, image_id, published_at')
-      .eq('status', 'published').eq('format', 1).eq('needs_rewrite', false)
+      .eq('status', 'published').lt('format', FORMAT).eq('needs_rewrite', false).in('topic', LIVE_TOPICS)
       .gte('last_article_at', new Date(Date.now() - 7 * 24 * 3600_000).toISOString())
       .order('importance', { ascending: false }).order('last_article_at', { ascending: false }).limit(spare)
     : { data: [] }
@@ -150,7 +159,7 @@ Deno.serve(async (req) => {
     try {
       const prompt = writePrompt(
           story.topic,
-          AREAS[story.topic],
+          (AREAS[story.topic] ?? []),
           arts.map((a, i) => ({
             id: `a${i + 1}`,
             // deno-lint-ignore no-explicit-any
@@ -162,11 +171,11 @@ Deno.serve(async (req) => {
           })),
         )
       let w = await generateJSON<Written>({ system: WRITE_SYSTEM, prompt })
-      // Writing rules are checked by code. One rewrite with the problems listed; if it still fails, a person reviews it.
-      let problems = copyProblems({ ...w, title: clean(w.title), why_it_matters: clean(w.why_it_matters), dek: clean(w.dek) }, story.topic)
+      // Writing rules are checked by code. One rewrite with the problems listed; if it still fails, the story stays a draft.
+      let problems = copyProblems({ ...w, title: clean(w.title), why_it_matters: clean(w.why_it_matters), dek: clean(w.dek), extra: extraText(w) }, story.topic)
       if (problems.length && timeLeft()) {
         w = await generateJSON<Written>({ system: WRITE_SYSTEM, prompt: `${prompt}\n\nYour previous draft broke these rules. Rewrite it so none apply:\n- ${problems.join('\n- ')}` })
-        problems = copyProblems({ ...w, title: clean(w.title), why_it_matters: clean(w.why_it_matters), dek: clean(w.dek) }, story.topic)
+        problems = copyProblems({ ...w, title: clean(w.title), why_it_matters: clean(w.why_it_matters), dek: clean(w.dek), extra: extraText(w) }, story.topic)
       }
 
       // Never publish an empty headline: fall back to the newest article's own title.
@@ -176,7 +185,7 @@ Deno.serve(async (req) => {
         .map((c) => ({ text: c.text, article_ids: (c.article_ids ?? []).map((x) => ids.get(x)).filter(Boolean) }))
         .filter((c) => c.text && c.article_ids.length)
       const importance = clampImportance(w.importance, label)
-      const area = AREAS[story.topic].includes(w.area) ? w.area : null
+      const area = (AREAS[story.topic] ?? []).includes(w.area) ? w.area : null
       // Bull and bear keep only arguments that cite a real article.
       const side = (xs: Written['bull']) => (xs ?? [])
         .map((x) => ({ text: clean(x.text), article_ids: (x.article_ids ?? []).map((a) => ids.get(a)).filter(Boolean) }))
@@ -185,9 +194,21 @@ Deno.serve(async (req) => {
       const watch = (w.watch_next ?? [])
         .map((x) => ({ when: /^\d{4}-\d{2}-\d{2}$/.test(String(x.when ?? '')) ? x.when : null, what: clean(x.what) }))
         .filter((x) => x.what).slice(0, 3)
-      // A story already approved by the editor stays published when it gets new articles.
-      const status = problems.length && story.status !== 'published' ? 'pending_review' : story.status === 'published' ? 'published' : statusFor(importance, label)
-      if (problems.length) log.push(`held ${story.id} for review: ${problems.join(' | ')}`)
+      // Who wins, who loses: other companies only, each backed by a real article.
+      const winners = (w.winners_losers ?? [])
+        .map((x) => ({
+          company: clean(x.company),
+          ticker: TICKERS.includes(String(x.ticker ?? '').toUpperCase()) ? String(x.ticker).toUpperCase() : null,
+          side: x.side === 'loses' ? 'loses' : 'wins',
+          why: clean(x.why),
+          article_ids: (x.article_ids ?? []).map((a) => ids.get(a)).filter(Boolean),
+        }))
+        .filter((x) => x.company && x.why && x.article_ids.length && x.ticker !== ticker).slice(0, 3)
+      // Truth rule first; a live story that breaks a writing rule on an update stays live, a new one stays a draft.
+      const trusted = statusFor(tiers) === 'published'
+      const status = !trusted || (problems.length && story.status !== 'published') ? 'draft' : 'published'
+      if (!trusted) log.push(`kept ${story.id} as draft: discovery sources only`)
+      else if (problems.length) log.push(`kept ${story.id} as draft: ${problems.join(' | ')}`)
       const image_id = story.image_id ?? (await pickImage(sb, story.topic, area))
 
       await sb.from('stories').update({
@@ -207,7 +228,9 @@ Deno.serve(async (req) => {
         bull: side(w.bull),
         bear: side(w.bear),
         ticker,
-        format: 2,
+        for_you: clean(w.for_you) || null,
+        winners_losers: winners,
+        format: FORMAT,
         claims,
         change_note: changeNote(story.status === 'draft' ? null : (story.label as Label), label) ?? undefined,
         article_count: arts.length,
@@ -230,6 +253,7 @@ Deno.serve(async (req) => {
     .from('stories')
     .select('id, title, what_happened')
     .eq('status', 'published')
+    .in('topic', LIVE_TOPICS)
     .is('enriched_at', null)
     .gte('last_article_at', new Date(Date.now() - 72 * 3600_000).toISOString())
     .order('last_article_at', { ascending: false })

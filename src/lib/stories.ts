@@ -23,13 +23,15 @@ export const findStory = (id: string) => state.stories.find((s) => s.id === id) 
 // Stories older than the 7-day window (saved long ago, or opened from a shared link). Kept apart so they
 // never leak into today's feed.
 const older = new Map<string, Story>()
+// Only these topics are live for now; stories from paused sector sources stay in the database but never load.
+const LIVE_TOPICS = 'in.(ai,tesla,nvidia)'
 const asked = new Set<string>()
 export async function ensureStories(ids: string[]) {
   const missing = ids.filter((id) => !findStory(id) && !asked.has(id) && /^[0-9a-f-]{36}$/.test(id))
   if (!missing.length || state.mode === 'sample') return
   missing.forEach((id) => asked.add(id))
   try {
-    const q = new URLSearchParams({ select: SELECT, status: 'eq.published', id: `in.(${missing.join(',')})` })
+    const q = new URLSearchParams({ select: SELECT, status: 'eq.published', topic: LIVE_TOPICS, id: `in.(${missing.join(',')})` })
     const res = await fetch(`${SUPABASE_URL}/rest/v1/stories?${q}`, { headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}` } })
     if (!res.ok) return
     for (const r of (await res.json()) as Row[]) older.set(r.id, toStory(r))
@@ -74,6 +76,8 @@ export interface Row {
   claims?: { text: string; article_ids: string[] }[] | null
   why_company?: string | null
   why_stock?: string | null
+  for_you?: string | null
+  winners_losers?: { company: string; ticker: string | null; side: string; why: string }[] | null
   watch_next?: { when: string | null; what: string }[] | null
   bull?: { text: string; article_ids: string[] }[] | null
   bear?: { text: string; article_ids: string[] }[] | null
@@ -93,7 +97,7 @@ const fallbackImage: Record<string, string> = { ai: 'img/ai-hero.jpg', tesla: 'i
 
 export function toStory(r: Row): Story {
   const hoursAgo = Math.max(0, Math.round((Date.now() - new Date(r.last_article_at).getTime()) / 3600_000))
-  const words = `${r.dek} ${r.what_happened} ${r.why_it_matters} ${r.why_company ?? ''} ${r.why_stock ?? ''} ${r.takeaways.join(' ')}`.split(/\s+/).length
+  const words = `${r.dek} ${r.what_happened} ${r.why_it_matters} ${r.why_company ?? ''} ${r.why_stock ?? ''} ${r.for_you ?? ''} ${(r.winners_losers ?? []).map((x) => x.why).join(' ')} ${r.takeaways.join(' ')}`.split(/\s+/).length
   const seen = new Set<string>()
   const sources: Source[] = []
   for (const a of r.articles ?? []) {
@@ -136,6 +140,8 @@ export function toStory(r: Row): Story {
     claims: (r.claims ?? []).map((c) => ({ text: c.text, n: c.article_ids?.length ?? 1 })),
     whyCompany: r.why_company ?? null,
     whyStock: r.why_stock ?? null,
+    forYou: r.for_you ?? null,
+    winnersLosers: (r.winners_losers ?? []).map((x) => ({ company: x.company, ticker: x.ticker ?? null, side: x.side === 'loses' ? 'loses' : 'wins', why: x.why })),
     watchNext: r.watch_next ?? [],
     bull: (r.bull ?? []).map((c) => ({ text: c.text, n: c.article_ids?.length ?? 1 })),
     bear: (r.bear ?? []).map((c) => ({ text: c.text, n: c.article_ids?.length ?? 1 })),
@@ -149,7 +155,7 @@ export function toStory(r: Row): Story {
 }
 
 const SELECT =
-  'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,image_url,sources(name,tier)),hype_title,highlight,uncertain,source_notes,claims,why_company,why_stock,watch_next,bull,bear,hype_score,hype_reason,ticker,debunked,debunk_note,published_at'
+  'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,image_url,sources(name,tier)),hype_title,highlight,uncertain,source_notes,claims,why_company,why_stock,for_you,winners_losers,watch_next,bull,bear,hype_score,hype_reason,ticker,debunked,debunk_note,published_at'
 
 export async function loadLive() {
   if (state.mode === 'error') set({ ...state, mode: 'loading' })
@@ -168,6 +174,7 @@ export async function loadLive() {
     const q = new URLSearchParams({
       select: SELECT,
       status: 'eq.published',
+      topic: LIVE_TOPICS,
       last_article_at: `gte.${since}`,
       order: 'last_article_at.desc',
       limit: '300',
