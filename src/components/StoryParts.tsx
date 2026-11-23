@@ -84,6 +84,49 @@ export function WhyItMatters({ story }: { story: Story }) {
   )
 }
 
+/* ---------- What it means for you ---------- */
+
+export function ForYou({ story }: { story: Story }) {
+  if (!story.forYou) return null
+  return (
+    <section>
+      <h2 className="t-section mt-10 sm:text-[26px] sm:leading-[30px]">What it means for you</h2>
+      <p className="mt-3 border-l-4 border-lime pl-4 text-[18px] leading-[29px] text-ink sm:text-[19px] sm:leading-[31px]">{story.forYou}</p>
+    </section>
+  )
+}
+
+/* ---------- Who wins, who loses ---------- */
+
+export function WinnersLosers({ story }: { story: Story }) {
+  const items = story.winnersLosers ?? []
+  if (!items.length) return null
+  return (
+    <section>
+      <h2 className="t-section mt-10 sm:text-[26px] sm:leading-[30px]">Who wins, who loses</h2>
+      <ul className="mt-3 border-b border-rule">
+        {items.map((it) => (
+          <li key={it.company} className="flex items-start gap-4 border-t border-rule py-3.5">
+            <span
+              className={`t-tag mt-1 inline-flex w-14 shrink-0 justify-center border border-ink px-1.5 py-0.5 ${it.side === 'wins' ? 'bg-lime text-lime-ink' : 'text-ink'}`}
+            >
+              {it.side === 'wins' ? 'Wins' : 'Loses'}
+            </span>
+            <span className="min-w-0 flex-1 text-[17px] leading-[26px] text-ink">
+              <span className="font-semibold">
+                {it.company}
+                {it.ticker && <span className="t-meta ml-1.5 text-ink-soft">{it.ticker}</span>}
+              </span>
+              <span className="block">{it.why}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="t-meta mt-2 text-ink-soft">Business impact from the sources, not a stock call.</p>
+    </section>
+  )
+}
+
 /** Section heading: the article style, or the sidebar style (a strong rule above). */
 export const sideHead = (side: boolean) => (side ? 't-section rule-strong pt-3' : 't-section mt-10 sm:text-[26px] sm:leading-[30px]')
 

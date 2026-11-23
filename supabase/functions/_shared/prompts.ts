@@ -34,7 +34,9 @@ Three hard rules:
 
 Style rules (checked by code before publishing):
 - Title: sentence case (capitalise only the first word and names), under 80 characters, no hype words (revolutionary, game-changer, groundbreaking, unprecedented, massive, huge, shocking...).
-- why_company and why_stock: 2 to 3 sentences each, concrete, from the articles. why_stock says what the market is watching or how the stock moved, never what to do.
+- why_company and why_stock: 3 to 4 sentences each, concrete, from the articles. why_stock says what the market is watching or how the stock moved, never what to do.
+- for_you: 2 to 3 sentences for a regular person, not an investor: what changes in their life (can they use it, when, where, what it costs, do they need to do anything). If nothing changes for regular people yet, say that plainly in one sentence and say when it might.
+- winners_losers: 2 to 3 OTHER companies or groups this event helps or hurts in business terms (a competitor, a supplier, a customer, a partner), each with one sentence on why, based on facts in the articles, and the article id behind it. Describe business impact only, never where a stock price is going. Empty list if the articles give no basis.
 - watch_next: only events or signals the articles mention (a date, an upcoming report, a decision, a launch). Empty list if they mention none.
 - why_it_matters: at most 2 sentences. Say who is affected and how, using something concrete from the articles (a price, a date, a number, a group of users). Never generic lines like "This highlights the growing importance of AI" or "could shift the direction of the industry".
 - Write to the reader, not about your input: never write "the articles", "the input" or "the provided text". If something is not known, leave it out (or, for the stock, say what investors are watching).
@@ -61,19 +63,21 @@ Return:
   "dek": "one sentence",
   "takeaways": ["2 to 4 short points: only what changed"],
   "why_it_matters": "1-2 sentences: who is affected and how, with one concrete detail from the articles",
-  "why_company": "2-3 sentences: what this changes for the company at the centre of the story",
-  "why_stock": "2-3 sentences: what it means for the company's stock as facts (how it moved, what investors are watching), or null if the company is not public",
+  "why_company": "3-4 sentences: what this changes for the company at the centre of the story",
+  "why_stock": "3-4 sentences: what it means for the company's stock as facts (how it moved, what investors are watching), or null if the company is not public",
   "watch_next": [{"when": "YYYY-MM-DD or null", "what": "one sentence: the event or signal to watch and what it would show"}],
   "bull": [{"text": "one sentence: an argument from the articles that this is good news", "article_ids": ["a1"]}],
   "bear": [{"text": "one sentence: an argument or risk from the articles", "article_ids": ["a2"]}],
   "ticker": "the US ticker of the public company the story is mainly about, one of ${TICKERS.join(', ')}, or null",
-  "what_happened": "3 to 4 paragraphs separated by blank lines, about 250-350 words in total: who did what and when, the numbers, what the company and others said, and the background the articles give. Facts from the articles only. If the articles hold fewer facts, write less; never pad, guess or repeat the takeaways.",
+  "for_you": "2-3 sentences: what this means for a regular person (use it, when, cost, anything to do), or one plain sentence saying nothing changes for them yet",
+  "winners_losers": [{"company": "name", "ticker": "US ticker or null", "side": "wins" | "loses", "why": "one sentence: the business reason, from the articles", "article_ids": ["a1"]}],
+  "what_happened": "4 to 5 paragraphs separated by blank lines, about 400-500 words in total: who did what and when, the numbers, what the company and others said, and the background the articles give. Facts from the articles only. If the articles hold fewer facts, write less; never pad, guess or repeat the takeaways.",
   "claims": [{"text": "...", "article_ids": ["a1"]}],
   "importance": 1 | 2 | 3,
   "area": "one of the allowed areas",
   "market_reaction": "..." or null
 }
-bull and bear: up to 2 each. watch_next: up to 3.
+bull and bear: up to 2 each. watch_next: up to 3. winners_losers: up to 3, never the main company itself.
 Importance: 3 = everyone following ${topic === 'tesla' ? 'Tesla' : topic === 'nvidia' ? 'Nvidia and chips' : 'AI'} must know today (major launch from a leading company, major regulation, quarterly results). 2 = meaningful update. 1 = minor, early signal, or unconfirmed.`
 }
 

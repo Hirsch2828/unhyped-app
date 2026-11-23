@@ -50,6 +50,10 @@ export interface Story {
   /** Why it matters, split: for the company and for its stock (facts only) */
   whyCompany?: string | null
   whyStock?: string | null
+  /** what changes for a regular person */
+  forYou?: string | null
+  /** other companies this helps or hurts, in business terms */
+  winnersLosers?: { company: string; ticker: string | null; side: 'wins' | 'loses'; why: string }[]
   /** dates and signals to watch next */
   watchNext?: { when: string | null; what: string }[]
   /** the strongest arguments each way, from the sources only */

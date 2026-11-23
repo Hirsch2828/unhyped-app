@@ -76,6 +76,8 @@ export interface Row {
   claims?: { text: string; article_ids: string[] }[] | null
   why_company?: string | null
   why_stock?: string | null
+  for_you?: string | null
+  winners_losers?: { company: string; ticker: string | null; side: string; why: string }[] | null
   watch_next?: { when: string | null; what: string }[] | null
   bull?: { text: string; article_ids: string[] }[] | null
   bear?: { text: string; article_ids: string[] }[] | null
@@ -95,7 +97,7 @@ const fallbackImage: Record<string, string> = { ai: 'img/ai-hero.jpg', tesla: 'i
 
 export function toStory(r: Row): Story {
   const hoursAgo = Math.max(0, Math.round((Date.now() - new Date(r.last_article_at).getTime()) / 3600_000))
-  const words = `${r.dek} ${r.what_happened} ${r.why_it_matters} ${r.why_company ?? ''} ${r.why_stock ?? ''} ${r.takeaways.join(' ')}`.split(/\s+/).length
+  const words = `${r.dek} ${r.what_happened} ${r.why_it_matters} ${r.why_company ?? ''} ${r.why_stock ?? ''} ${r.for_you ?? ''} ${(r.winners_losers ?? []).map((x) => x.why).join(' ')} ${r.takeaways.join(' ')}`.split(/\s+/).length
   const seen = new Set<string>()
   const sources: Source[] = []
   for (const a of r.articles ?? []) {
@@ -138,6 +140,8 @@ export function toStory(r: Row): Story {
     claims: (r.claims ?? []).map((c) => ({ text: c.text, n: c.article_ids?.length ?? 1 })),
     whyCompany: r.why_company ?? null,
     whyStock: r.why_stock ?? null,
+    forYou: r.for_you ?? null,
+    winnersLosers: (r.winners_losers ?? []).map((x) => ({ company: x.company, ticker: x.ticker ?? null, side: x.side === 'loses' ? 'loses' : 'wins', why: x.why })),
     watchNext: r.watch_next ?? [],
     bull: (r.bull ?? []).map((c) => ({ text: c.text, n: c.article_ids?.length ?? 1 })),
     bear: (r.bear ?? []).map((c) => ({ text: c.text, n: c.article_ids?.length ?? 1 })),
@@ -151,7 +155,7 @@ export function toStory(r: Row): Story {
 }
 
 const SELECT =
-  'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,image_url,sources(name,tier)),hype_title,highlight,uncertain,source_notes,claims,why_company,why_stock,watch_next,bull,bear,hype_score,hype_reason,ticker,debunked,debunk_note,published_at'
+  'id,topic,area,label,importance,title,dek,takeaways,why_it_matters,what_happened,market_reaction,article_count,last_article_at,images(path,tags),articles(url,title,image_url,sources(name,tier)),hype_title,highlight,uncertain,source_notes,claims,why_company,why_stock,for_you,winners_losers,watch_next,bull,bear,hype_score,hype_reason,ticker,debunked,debunk_note,published_at'
 
 export async function loadLive() {
   if (state.mode === 'error') set({ ...state, mode: 'loading' })

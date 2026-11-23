@@ -7,7 +7,7 @@ import { timeAgo } from '../lib/feed'
 import type { Story } from '../data/types'
 import PriceChart from '../components/PriceChart'
 import LiveQuote from '../components/LiveQuote'
-import { AnatomyButton, BullBear, HypeMeter, WatchNext, WhyItMatters, sideHead } from '../components/StoryParts'
+import { AnatomyButton, BullBear, ForYou, HypeMeter, WatchNext, WhyItMatters, WinnersLosers, sideHead } from '../components/StoryParts'
 import { CategoryBadge, Headline, Photo, SaveButton, TrustMark, plural } from '../components/ui'
 import SignupSheet from '../components/SignupSheet'
 
@@ -230,6 +230,8 @@ export default function StoryPage() {
               </div>
             </>
           )}
+          <ForYou story={story} />
+          <WinnersLosers story={story} />
           {unclear.length > 0 && (
             <>
               <h2 className="t-section mt-10 sm:text-[26px] sm:leading-[30px]">Still unclear</h2>

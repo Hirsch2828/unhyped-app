@@ -46,7 +46,7 @@ const GENERIC_WHY = [/^this (development|news|move|update|announcement) (highlig
 
 export const MAX_TITLE = 80
 
-export interface Copy { title: string; dek: string; why_it_matters: string; takeaways?: string[]; claims?: { article_ids?: unknown[] }[]; why_company?: string | null; why_stock?: string | null; bull?: { text?: string }[]; bear?: { text?: string }[] }
+export interface Copy { title: string; dek: string; why_it_matters: string; takeaways?: string[]; claims?: { article_ids?: unknown[] }[]; why_company?: string | null; why_stock?: string | null; bull?: { text?: string }[]; bear?: { text?: string }[]; extra?: string }
 
 const sentences = (s: string) => s.split(/(?<=[.!?])\s+(?=[A-Z0-9"“])/).filter((x) => x.trim().length > 0)
 
@@ -61,7 +61,7 @@ export function copyProblems(c: Copy, topic: string): string[] {
   const out: string[] = []
   const text = `${c.title} ${c.dek} ${c.why_it_matters} ${(c.takeaways ?? []).join(' ')}`
   // Everything about the company or its stock is checked for advice wording, whatever the topic.
-  const money = `${text} ${c.why_company ?? ''} ${c.why_stock ?? ''} ${[...(c.bull ?? []), ...(c.bear ?? [])].map((x) => x.text ?? '').join(' ')}`
+  const money = `${text} ${c.why_company ?? ''} ${c.why_stock ?? ''} ${[...(c.bull ?? []), ...(c.bear ?? [])].map((x) => x.text ?? '').join(' ')} ${c.extra ?? ''}`
   if (!c.title.trim()) out.push('The title is empty.')
   if (c.title.length > MAX_TITLE) out.push(`The title is ${c.title.length} characters; keep it under ${MAX_TITLE}.`)
   if (isTitleCase(c.title)) out.push('The title is in Title Case; use sentence case (capitalise only the first word and names).')
